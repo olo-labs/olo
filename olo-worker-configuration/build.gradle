@@ -1,0 +1,23 @@
+plugins {
+    id 'java'
+}
+
+group = 'org.olo'
+version = '1.0.0-SNAPSHOT'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':olo-worker-input')
+    implementation project(':olo-worker-execution-tree')
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
+    implementation 'redis.clients:jedis:5.2.0'
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+}

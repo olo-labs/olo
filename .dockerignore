@@ -1,0 +1,21 @@
+# Git and IDE
+.git
+.github
+.idea
+*.iml
+.vscode
+
+# Build outputs (rebuilt in container)
+build
+.gradle
+**/target
+**/build
+
+# Logs and temp
+*.log
+*.tmp
+.DS_Store
+
+# Docs and local config (optional: remove if you want them in image)
+# docs
+# *.md

@@ -1,0 +1,77 @@
+# Build outputs
+backend/target/
+frontend/dist/
+frontend/node_modules/
+out/
+build/
+
+# Local / generated data
+backend/data/
+*.db
+*.trace.db
+api-components-response.json
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.settings/
+.project
+.classpath
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and temp
+*.log
+logs/
+*.tmp
+*.temp
+*.swp
+*~
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Java / Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.gradle/
+*.class
+*.jar
+!**/src/main/**/package-info.java
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
+.cache/
+.vite/
+
+# Optional: plugin zip builds (uncomment if you don't want to track zips)
+# plugins/*.zip
+
+# Cursor / editor
+.cursor/
+
+# Docker local overrides (keep docker-compose.yml)
+docker-compose.override.yml
+.docker/
+
+# Test / coverage
+coverage/
+*.lcov
+.nyc_output/
+.report/
+test-results/
