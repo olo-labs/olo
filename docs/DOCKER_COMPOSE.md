@@ -43,7 +43,7 @@ First run builds `olo:local` from the Dockerfile. Later runs reuse the image unl
 - **Backend API:** http://localhost:7080  
 - **Swagger UI:** http://localhost:7080/swagger-ui.html (enabled when **`OLO_SWAGGER_UI_ENABLED=true`**, default in dev/demo)  
 - **Health:** http://localhost:7080/api/health  
-- **Redis:** localhost:6379 (for CLI or other tools)  
+- **Redis:** localhost:46379 (for CLI or other tools)  
 - **Temporal:** localhost:7233 (for tctl or worker)
 
 ### Run the executor on your host
@@ -115,7 +115,7 @@ Set at least these in `.env` (or your orchestration):
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `OLO_CACHE_HOST` | Redis/cache host | `redis.prod.svc` or `my-redis.example.com` |
-| `OLO_CACHE_PORT` | Redis/cache port | `6379` |
+| `OLO_CACHE_PORT` | Redis/cache port | `46379` |
 | `OLO_TEMPORAL_TARGET` | Temporal gRPC address | `temporal.prod.svc:7233` |
 | `OLO_TEMPORAL_NAMESPACE` | Temporal namespace | `default` or `production` |
 | `OLO_CHAT_CALLBACK_BASE_URL` | Base URL the worker uses to POST events | `https://api.example.com` |
@@ -202,7 +202,7 @@ docker compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d
 | Service | Port | Purpose |
 |---------|------|---------|
 | olo-backend | 7080 | HTTP API, Swagger, WebSocket, SSE |
-| Redis | 6379 | Sessions, queues (kernel config) |
+| Redis | 46379 | Sessions, queues (kernel config) |
 | Temporal | 7233 | gRPC for workflow client/worker |
 | Postgres (dev/demo) | 5432 | Temporal persistence |
 

@@ -48,6 +48,8 @@ public class RunServiceImpl implements RunService {
     private final ChatMessageStore messageStore;
     /** RunIds for which we have already persisted the assistant message (Redis and/or in-memory) (one per run). */
     private final Set<String> assistantPersistedRunIds = ConcurrentHashMap.newKeySet();
+    /** RunIds for which we have already persisted the HUMAN decision message (one per run). */
+    private final Set<String> humanDecisionPersistedRunIds = ConcurrentHashMap.newKeySet();
 
     public RunServiceImpl(ExecutionEventStore eventStore,
                            RunEventBroadcaster broadcaster,
@@ -158,6 +160,17 @@ public class RunServiceImpl implements RunService {
         eventStore.append(runId, event);
         String derivedStatus = deriveRunStatus(eventStore.getEvents(runId));
         runStore.setStatus(runId, derivedStatus);
+
+        // Persist human decision to conversation history when worker confirms HUMAN COMPLETED.
+        if (NodeType.HUMAN.equals(event.getNodeType())
+                && NodeStatus.COMPLETED.equals(event.getStatus())
+                && !humanDecisionPersistedRunIds.contains(runId)) {
+            String humanDecisionText = extractHumanDecisionText(output);
+            if (humanDecisionText != null && !humanDecisionText.isBlank()) {
+                persistUserConversationMessage(runId, humanDecisionText);
+                humanDecisionPersistedRunIds.add(runId);
+            }
+        }
 
         // Persist assistant response BEFORE broadcast so client refetch sees it when event arrives
         if (!assistantPersistedRunIds.contains(runId)) {
@@ -274,4 +287,60 @@ public class RunServiceImpl implements RunService {
         }
         return null;
     }
+
+    private static String extractHumanDecisionText(Map<String, Object> output) {
+        if (output == null || output.isEmpty()) return null;
+        Object message = output.get("message");
+        if (message instanceof String msg && !msg.trim().isEmpty()) return msg.trim();
+        Object response = output.get("response");
+        if (response instanceof String r && !r.trim().isEmpty()) return r.trim();
+        Object approved = output.get("approved");
+        if (approved instanceof Boolean b) {
+            return b ? "Yes, use dynamic flow" : "No, direct response only";
+        }
+        return null;
+    }
+
+    private void persistUserConversationMessage(String runId, String content) {
+        if (content == null || content.isBlank()) return;
+        RunChatContext context = resolveRunChatContext(runId);
+        if (context == null || context.sessionId == null || context.sessionId.isBlank()) return;
+        String userMessageId = UUID.randomUUID().toString();
+        long createdAt = System.currentTimeMillis();
+        if (redisPersistence != null) {
+            try {
+                redisPersistence.touchSession(context.tenantId, context.sessionId);
+                redisPersistence.appendMessage(context.tenantId, context.sessionId, userMessageId,
+                        "user", content, runId, createdAt);
+            } catch (Exception e) {
+                log.warn("Failed to persist human decision to Redis runId={}", runId, e);
+            }
+        }
+        if (messageStore != null) {
+            messageStore.put(new ChatMessageStore.MessageRecord(
+                    userMessageId, context.sessionId, "user", content, runId));
+        }
+    }
+
+    private RunChatContext resolveRunChatContext(String runId) {
+        ChatRunStore.RunRecord run = runStore.get(runId);
+        if (run != null && run.sessionId != null && !run.sessionId.isBlank()) {
+            return new RunChatContext(run.tenantId, run.sessionId);
+        }
+        List<OloExecutionEvent> events = eventStore.getEvents(runId);
+        if (events == null || events.isEmpty()) return null;
+        for (OloExecutionEvent e : events) {
+            Map<String, Object> metadata = e.getMetadata();
+            if (metadata == null || metadata.isEmpty()) continue;
+            Object sessionIdObj = metadata.get("sessionId");
+            String sessionId = sessionIdObj != null ? sessionIdObj.toString() : "";
+            if (sessionId.isBlank()) continue;
+            Object tenantIdObj = metadata.get("tenantId");
+            String tenantId = tenantIdObj != null ? tenantIdObj.toString() : null;
+            return new RunChatContext(tenantId, sessionId);
+        }
+        return null;
+    }
+
+    private record RunChatContext(String tenantId, String sessionId) {}
 }

@@ -5,168 +5,155 @@
 
 package org.olo.app.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Reads kernel config queue names from Redis.
- * Key pattern matches olo-worker-configuration: <tenantId>:olo:kernel:config:<queueName>
- * (e.g. 2a2a91fb-f5b4-4cf0-b917-524d242b2e3d:olo:kernel:config:olo-chat-queue-oolama:1.0).
- * Requires Redis: do not exclude Redis autoconfig; ensure Redis is running (olo.cache.host/port, mapped to spring.data.redis).
+ * Chat UI queue / pipeline catalog from the same Redis section as olo-worker-configuration:
+ * {@code <root>:config:pipelines:<region>} (JSON object: pipeline id → pipeline definition).
+ * <p>
+ * "Queue" in the UI = Temporal task queue / pipeline id (top-level keys). "Pipeline" sub-dropdown
+ * uses a {@code pipelines} object inside that definition when present; otherwise a single synthetic row.
+ * </p>
  */
 @Service
 public class KernelConfigQueueService {
 
     private static final Logger log = LoggerFactory.getLogger(KernelConfigQueueService.class);
-    private static final String SUFFIX = ":olo:kernel:config:";
-    private static final String SCAN_PATTERN = "*" + SUFFIX + "*";
-    private static final String FALLBACK_DEFAULT_TENANT_ID = "2a2a91fb-f5b4-4cf0-b917-524d242b2e3d";
 
     private final StringRedisTemplate redisTemplate;
-    private final String defaultTenantId;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public KernelConfigQueueService(
-            @Autowired(required = false) StringRedisTemplate redisTemplate,
-            @Value("${olo.default-tenant-id:}") String defaultTenantId) {
+    @Value("${olo.cache.root-key:olo}")
+    private String cacheRootKey;
+
+    @Value("${olo.ui.config-region:}")
+    private String uiConfigRegion;
+
+    @Value("${olo.region:default}")
+    private String configuredRegion;
+
+    public KernelConfigQueueService(@Autowired(required = false) StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
-        this.defaultTenantId = (defaultTenantId != null && !defaultTenantId.isBlank())
-                ? defaultTenantId.trim()
-                : FALLBACK_DEFAULT_TENANT_ID;
         if (redisTemplate == null) {
-            log.warn("KernelConfigQueueService: Redis not available (StringRedisTemplate is null). Ensure Redis is running and spring.autoconfigure.exclude does NOT contain RedisAutoConfiguration.");
+            log.warn("KernelConfigQueueService: Redis not available; queue/pipeline catalog will be empty.");
         }
     }
 
     /**
-     * Returns queue names for keys matching <tenantId>:olo:kernel:config:<queueName>.
-     * Uses normalized tenant id (e.g. "default" → default tenant UUID) so keys match olo-worker-configuration.
+     * Sorted pipeline ids (Temporal task queue names) for {@link #pipelinesRedisKey()}.
      */
     public List<String> getQueueNames(String tenantId) {
-        if (redisTemplate == null) {
-            log.debug("getQueueNames: Redis not available, returning empty list for tenantId={}", tenantId);
+        Map<String, Object> pipelines = loadPipelinesMap();
+        if (pipelines.isEmpty()) {
             return Collections.emptyList();
         }
-        String normalizedTenant = normalizeTenantIdForConfig(tenantId);
-        Set<String> queueNames = new LinkedHashSet<>();
-        String tenantPrefix = normalizedTenant + SUFFIX;
-        try {
-            Set<String> keys = keysViaExecute(SCAN_PATTERN);
-            if (log.isDebugEnabled()) {
-                log.debug("getQueueNames tenantId={} normalizedTenant={} keysFound={} sample={}", tenantId, normalizedTenant, keys.size(), keys.isEmpty() ? null : keys.iterator().next());
-            }
-            for (String k : keys) {
-                if (k != null && k.startsWith(tenantPrefix)) {
-                    String name = k.substring(tenantPrefix.length());
-                    if (!name.isEmpty()) queueNames.add(name);
-                }
-            }
-            if (queueNames.isEmpty()) {
-                String legacyPrefix = "olo:kernel:config:";
-                for (String k : keys) {
-                    if (k != null && k.startsWith(legacyPrefix)) {
-                        String name = k.substring(legacyPrefix.length());
-                        if (!name.isEmpty()) queueNames.add(name);
-                    }
-                }
-            }
-            return new ArrayList<>(queueNames).stream().sorted().collect(Collectors.toList());
-        } catch (Exception e) {
-            return Collections.emptyList();
-        }
+        return pipelines.keySet().stream().sorted().collect(Collectors.toList());
     }
 
     /**
-     * Run KEYS pattern using the template's connection and key serializer so encoding/DB match.
-     */
-    @SuppressWarnings("unchecked")
-    private Set<String> keysViaExecute(String pattern) {
-        if (redisTemplate == null) return Collections.emptySet();
-        byte[] patternBytes = pattern.getBytes(StandardCharsets.UTF_8);
-        Set<String> result = redisTemplate.execute((RedisCallback<Set<String>>) connection -> {
-            Iterable<byte[]> rawKeys = connection.keys(patternBytes);
-            if (rawKeys == null) {
-                log.debug("keysViaExecute: Redis KEYS pattern='{}' returned null", pattern);
-                return Collections.emptySet();
-            }
-            Set<String> out = new LinkedHashSet<>();
-            for (byte[] keyBytes : rawKeys) {
-                if (keyBytes != null && keyBytes.length > 0) {
-                    out.add(new String(keyBytes, StandardCharsets.UTF_8));
-                }
-            }
-            if (out.isEmpty()) {
-                log.debug("keysViaExecute: Redis KEYS pattern='{}' returned 0 keys (check DB index and that keys exist)", pattern);
-            }
-            return out;
-        });
-        return result != null ? result : Collections.emptySet();
-    }
-
-    /**
-     * Normalizes tenant id for Redis key so it matches olo-worker-configuration (e.g. "default" → default tenant UUID).
-     */
-    public String normalizeTenantIdForConfig(String tenantId) {
-        if (tenantId == null || tenantId.isBlank()) {
-            return defaultTenantId;
-        }
-        String t = tenantId.trim();
-        if ("default".equalsIgnoreCase(t)) {
-            return defaultTenantId;
-        }
-        return t;
-    }
-
-    /**
-     * Returns the queue configuration JSON for key <tenantId>:olo:kernel:config:<queueName>.
-     * Uses normalized tenant id (e.g. "default" → olo.default-tenant-id) so key matches olo-worker-configuration.
-     * Value is expected to be JSON (e.g. contains "pipelines" array). Returns null if key missing or Redis unavailable.
+     * JSON string for {@link org.olo.app.controller.TenantQueuesController}: shape includes {@code pipelines}
+     * for the Pipeline dropdown (same as legacy kernel-config JSON).
      */
     public String getQueueConfig(String tenantId, String queueName) {
-        if (redisTemplate == null || queueName == null || queueName.isBlank()) {
+        if (queueName == null || queueName.isBlank()) {
             return null;
         }
-        String normalizedTenant = normalizeTenantIdForConfig(tenantId);
+        Map<String, Object> all = loadPipelinesMap();
+        Object def = all.get(queueName);
+        if (def == null) {
+            return null;
+        }
         try {
-            String key = normalizedTenant + SUFFIX + queueName;
-            return redisTemplate.opsForValue().get(key);
+            if (def instanceof Map<?, ?> m) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> asMap = (Map<String, Object>) m;
+                if (asMap.containsKey("pipelines")) {
+                    return objectMapper.writeValueAsString(asMap);
+                }
+                return objectMapper.writeValueAsString(wrapSinglePipeline(queueName, asMap));
+            }
+            return objectMapper.writeValueAsString(wrapSinglePipeline(queueName, Map.of()));
         } catch (Exception e) {
-            log.debug("getQueueConfig failed for tenantId={} queueName={}", tenantId, queueName, e);
+            log.debug("getQueueConfig failed for queueName={}: {}", queueName, e.getMessage());
             return null;
         }
     }
 
     /**
-     * Returns tenant ids that have at least one key matching <tenantId>:olo:kernel:config:*
+     * Reserved for tenant listing; sectioned config is per region, not per tenant id. Returns an empty list.
      */
     public List<String> getTenantIdsFromRedis() {
-        if (redisTemplate == null) return List.of();
-        try {
-            Set<String> keys = keysViaExecute(SCAN_PATTERN);
-            Set<String> ids = new LinkedHashSet<>();
-            for (String k : keys) {
-                if (k == null) continue;
-                int idx = k.indexOf(SUFFIX);
-                if (idx > 0) {
-                    String id = k.substring(0, idx);
-                    if (!id.isEmpty()) ids.add(id);
-                }
-            }
-            return new ArrayList<>(ids).stream().sorted().collect(Collectors.toList());
-        } catch (Exception e) {
-            return Collections.emptyList();
+        return List.of();
+    }
+
+    private Map<String, Object> loadPipelinesMap() {
+        if (redisTemplate == null) {
+            return Map.of();
         }
+        String key = pipelinesRedisKey();
+        try {
+            String raw = redisTemplate.opsForValue().get(key);
+            if (raw == null || raw.isBlank()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("No pipelines section at Redis key {}", key);
+                }
+                return Map.of();
+            }
+            Map<String, Object> map = objectMapper.readValue(raw, new TypeReference<Map<String, Object>>() {});
+            return map != null ? map : Map.of();
+        } catch (Exception e) {
+            log.warn("Failed to parse pipelines JSON at {}: {}", key, e.getMessage());
+            return Map.of();
+        }
+    }
+
+    /** Redis key: {@code <root>:config:pipelines:<region>}. */
+    public String pipelinesRedisKey() {
+        String root = (cacheRootKey != null && !cacheRootKey.isBlank()) ? cacheRootKey.trim() : "olo";
+        return root + ":config:pipelines:" + resolveRegion();
+    }
+
+    private String resolveRegion() {
+        if (uiConfigRegion != null && !uiConfigRegion.isBlank()) {
+            return uiConfigRegion.trim();
+        }
+        if (configuredRegion != null && !configuredRegion.isBlank()) {
+            return configuredRegion.trim();
+        }
+        return "default";
+    }
+
+    private Map<String, Object> wrapSinglePipeline(String pipelineId, Map<String, Object> definition) {
+        Map<String, Object> root = new LinkedHashMap<>();
+        Object ver = definition.get("version");
+        root.put("version", ver != null ? ver : "1.0");
+        Map<String, Object> pipelines = new LinkedHashMap<>();
+        String label = displayName(definition, pipelineId);
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("name", label);
+        pipelines.put(pipelineId, row);
+        root.put("pipelines", pipelines);
+        return root;
+    }
+
+    private static String displayName(Map<String, Object> definition, String pipelineId) {
+        Object n = definition.get("name");
+        if (n instanceof String s && !s.isBlank()) {
+            return s.trim();
+        }
+        return pipelineId;
     }
 }

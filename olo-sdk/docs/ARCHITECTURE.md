@@ -10,7 +10,7 @@ This document describes the complete architecture of the **olo-sdk**: a Java lib
 
 **olo-sdk abstracts connection and lifecycle only. It does not abstract workflow semantics.**
 
-- The SDK provides: configured `WorkflowServiceStubs`, `WorkflowClient`, target, namespace, and `close()`. The backend uses `getWorkflowClient()` and then works directly with the Temporal SDK: it builds `WorkflowOptions`, uses untyped workflow stubs, and knows workflow type names (e.g. `"OloChatWorkflow"`).
+- The SDK provides: configured `WorkflowServiceStubs`, `WorkflowClient`, target, namespace, and `close()`. The backend uses `getWorkflowClient()` and then works directly with the Temporal SDK: it builds `WorkflowOptions`, uses untyped workflow stubs, and the configured workflow type name (e.g. **`OloKernelWorkflow`** for **olo-worker**, **`OloChatWorkflowImpl`** for **olo-executor**).
 - So the backend remains **tightly coupled to Temporal** for workflow operations. The SDK is a **connection factory**, not a workflow abstraction.
 - This is **intentional**. If that remains the permanent intent, no further abstraction is required. If later you introduce typed workflow APIs or stub factories in the SDK, that would reduce backend–Temporal coupling; the docs would then be updated to reflect the new scope.
 
@@ -23,7 +23,7 @@ The Olo SDK centralizes:
 - **Temporal connection management** — Service stubs, namespace, and client lifecycle (target, namespace, `close()`).
 - **Configuration** — Connection details supplied by the host application via the builder; no hard-coded addresses or namespaces in application code.
 
-The SDK does encapsulate the **workflow type name** for the chat workflow: `newChatWorkflowStub(WorkflowOptions)` returns a stub for the Olo chat workflow so the backend never uses the string `"OloChatWorkflow"`; renaming the workflow only requires changing the SDK. The backend still uses Temporal SDK types for `WorkflowOptions`, stub usage (start/signal), and for signaling by workflow id.
+The SDK encapsulates the **workflow type name** passed into **`TemporalClient`**: `newChatWorkflowStub(WorkflowOptions)` uses that name so call sites do not hard-code a string. The backend sets the type from **`olo.temporal.workflow-type`** / **`OLO_WORKFLOW_TYPE`** (must match the worker). The backend still uses Temporal SDK types for `WorkflowOptions`, stub usage (start/signal), and signaling by workflow id.
 
 ### 1.3 Positioning in the System
 
@@ -45,8 +45,9 @@ The SDK does encapsulate the **workflow type name** for the chat workflow: `newC
                                              ▲
                                              │
 ┌────────────────────────────────────────────│─────────────────────┐
-│  Olo Executor (separate process)           │                     │
-│  - OloChatWorkflow / OloChatActivities     │                     │
+│  Temporal worker (separate process)        │                     │
+│  e.g. olo-executor: OloChatWorkflow*       │                     │
+│  or olo-worker: OloKernelWorkflow*        │                     │
 └────────────────────────────────────────────┴─────────────────────┘
 ```
 

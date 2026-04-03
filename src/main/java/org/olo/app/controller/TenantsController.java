@@ -23,16 +23,18 @@ import java.util.stream.Collectors;
 
 /**
  * Tenants list for the UI. Merges config (olo.tenant-ids) with tenant ids discovered from Redis
- * (keys *:olo:kernel:config:*), so dropdown includes UUID tenants and queues show under Chat/RAG.
- * If Redis is unavailable, returns at least the default tenant (no 500).
+ * (keys *:olo:kernel:config:*). If Redis is unavailable, returns at least the default tenant (no 500).
  */
 @RestController
 @RequestMapping("/api/tenants")
 @Tag(name = "Tenants", description = "Tenant list for UI (default tenant + Redis-discovered)")
 public class TenantsController {
 
-    @Value("${olo.default-tenant-id:2a2a91fb-f5b4-4cf0-b917-524d242b2e3d}")
+    @Value("${olo.default-tenant-id:default}")
     private String defaultTenantId;
+
+    @Value("${olo.ui.tenant-display-name:Default}")
+    private String tenantDisplayName;
 
     @Value("${olo.tenant-ids:}")
     private String tenantIds;
@@ -40,37 +42,41 @@ public class TenantsController {
     @Autowired(required = false)
     private KernelConfigQueueService queueService;
 
-    private static final String FALLBACK_DEFAULT_TENANT_ID = "2a2a91fb-f5b4-4cf0-b917-524d242b2e3d";
-
-    @Operation(summary = "List tenants", description = "Default tenant (id from olo.default-tenant-id, name Default) first, then Redis-discovered ids. Populates dropdown so queues appear for selected tenant.")
+    @Operation(summary = "List tenants", description = "Default tenant (olo.default-tenant-id + olo.ui.tenant-display-name) first, then Redis-discovered ids.")
     @GetMapping
     public ResponseEntity<List<TenantDto>> listTenants() {
         try {
             String defaultId = (defaultTenantId != null && !defaultTenantId.isBlank())
-                    ? defaultTenantId
-                    : FALLBACK_DEFAULT_TENANT_ID;
+                    ? defaultTenantId.trim()
+                    : "default";
+            String defaultName = (tenantDisplayName != null && !tenantDisplayName.isBlank())
+                    ? tenantDisplayName.trim()
+                    : "Default";
             Set<String> ids = new LinkedHashSet<>();
             ids.add(defaultId);
             if (tenantIds != null) {
                 Arrays.stream(tenantIds.split(","))
                         .map(String::trim)
                         .filter(s -> !s.isEmpty())
-                        .map(s -> "default".equalsIgnoreCase(s) ? defaultId : s)
                         .forEach(ids::add);
             }
             if (queueService != null) {
                 ids.addAll(queueService.getTenantIdsFromRedis());
             }
+            final String dn = defaultName;
+            final String did = defaultId;
             List<TenantDto> list = ids.stream()
                     .filter(id -> id != null && !id.isEmpty())
-                    .map(id -> new TenantDto(id, id.equals(defaultId) ? "Default" : toDisplayName(id)))
+                    .map(id -> new TenantDto(id, id.equals(did) ? dn : toDisplayName(id)))
                     .collect(Collectors.toList());
             if (list.isEmpty()) {
-                list = List.of(new TenantDto(defaultId, "Default"));
+                list = List.of(new TenantDto(defaultId, defaultName));
             }
             return ResponseEntity.ok(list);
         } catch (Exception e) {
-            return ResponseEntity.ok(List.of(new TenantDto(FALLBACK_DEFAULT_TENANT_ID, "Default")));
+            String did = (defaultTenantId != null && !defaultTenantId.isBlank()) ? defaultTenantId.trim() : "default";
+            String dname = (tenantDisplayName != null && !tenantDisplayName.isBlank()) ? tenantDisplayName.trim() : "Default";
+            return ResponseEntity.ok(List.of(new TenantDto(did, dname)));
         }
     }
 

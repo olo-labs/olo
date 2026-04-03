@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2026 Olo Labs
- * SPDX-License-Identifier: Apache-2.0
+ * Copyright (c) 2026 Olo Labs. All rights reserved.
  */
 
-package org.olo.input.consumer;
+package org.olo.input.consumer.impl;
 
+import org.olo.input.consumer.CacheReader;
+import org.olo.input.consumer.FileReader;
+import org.olo.input.consumer.WorkflowInputValues;
 import org.olo.input.model.FileStorage;
 import org.olo.input.model.InputItem;
 import org.olo.input.model.Storage;

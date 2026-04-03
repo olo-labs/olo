@@ -26,13 +26,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Kernel config queues for a tenant from Redis keys <tenantId>:olo:kernel:config:*
- * (same key format as olo-worker-configuration). When a queue is selected, config is
- * deserialized and pipelines are listed for the Conversation pipeline dropdown.
+ * Queue and pipeline catalog from the sectioned config snapshot in Redis:
+ * {@code <olo.cache.root-key>:config:pipelines:<region>} (same as olo-worker-configuration).
+ * Region: {@code olo.ui.config-region}, else {@code olo.region}, else {@code default}.
  */
 @RestController
 @RequestMapping("/api/tenants")
-@Tag(name = "Tenant queues", description = "Kernel config queue list from Redis (<tenantId>:olo:kernel:config:*)")
+@Tag(name = "Tenant queues", description = "Pipeline ids (task queues) from Redis olo:config:pipelines:<region>")
 public class TenantQueuesController {
 
     private static final Logger log = LoggerFactory.getLogger(TenantQueuesController.class);
@@ -42,7 +42,7 @@ public class TenantQueuesController {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Operation(summary = "List queues", description = "Returns queue names for keys matching <tenantId>:olo:kernel:config:* in Redis. Shown under Chat and RAG.")
+    @Operation(summary = "List queues", description = "Returns pipeline ids (Temporal task queue names) from the pipelines section for the configured region.")
     @GetMapping("/{tenantId}/queues")
     public ResponseEntity<List<String>> listQueues(@PathVariable String tenantId) {
         List<String> queues = queueService != null ? queueService.getQueueNames(tenantId) : Collections.emptyList();
@@ -52,7 +52,7 @@ public class TenantQueuesController {
         return ResponseEntity.ok(queues);
     }
 
-    @Operation(summary = "Get queue config", description = "Deserializes config from Redis key <tenantId>:olo:kernel:config:<queueName> (olo-worker-configuration key format). Returns config with 'pipelines' array for the Conversation pipeline dropdown.")
+    @Operation(summary = "Get queue config", description = "Returns pipeline definition JSON (with top-level 'pipelines' for the UI) derived from the pipelines section for queueName = pipeline id.")
     @GetMapping("/{tenantId}/queues/{queueName}/config")
     public ResponseEntity<Map<String, Object>> getQueueConfig(
             @PathVariable String tenantId,
@@ -69,9 +69,9 @@ public class TenantQueuesController {
             if (config == null) {
                 return ResponseEntity.ok(emptyConfigWithPipelines());
             }
-            List<String> pipelines = extractPipelines(config);
+            List<Map<String, Object>> pipelines = buildPipelinesForUi(config);
             if (log.isDebugEnabled()) {
-                log.debug("Queue config tenantId={} queueName={} topLevelKeys={} pipelinesExtracted={}", tenantId, queueName, config.keySet(), pipelines);
+                log.debug("Queue config tenantId={} queueName={} topLevelKeys={} pipelinesForUi={}", tenantId, queueName, config.keySet(), pipelines);
             }
             Map<String, Object> response = new LinkedHashMap<>(config);
             response.put("pipelines", pipelines);
@@ -89,17 +89,66 @@ public class TenantQueuesController {
     }
 
     /**
-     * Extracts pipeline names from deserialized config (olo-worker-configuration key format).
-     * Recursively searches the JSON for "pipelines" (array) or "pipeline" (string) at any depth
-     * so execution-tree / loader shapes are supported.
+     * Builds UI pipeline rows: {@code { "id", "name" }} for each pipeline, matching olo-chat Conversation dropdown.
+     * Prefers top-level {@code pipelines} (object map or array); otherwise falls back to recursive id collection.
      */
     @SuppressWarnings("unchecked")
-    private static List<String> extractPipelines(Map<String, Object> config) {
-        List<String> out = new ArrayList<>();
-        collectPipelinesFromValue(config, out);
+    private static List<Map<String, Object>> buildPipelinesForUi(Map<String, Object> config) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        Object top = config.get("pipelines");
+        if (top instanceof Map) {
+            for (Map.Entry<String, Object> e : ((Map<String, Object>) top).entrySet()) {
+                String id = e.getKey();
+                if (id == null || id.isBlank()) continue;
+                String name = pipelineNameFromEntry(id, e.getValue());
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id", id);
+                row.put("name", name.isEmpty() ? id : name);
+                out.add(row);
+            }
+            return out;
+        }
+        if (top instanceof List) {
+            for (Object o : (List<?>) top) {
+                if (o instanceof String) {
+                    String s = ((String) o).trim();
+                    if (s.isEmpty()) continue;
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", s);
+                    row.put("name", s);
+                    out.add(row);
+                } else if (o instanceof Map) {
+                    Map<?, ?> m = (Map<?, ?>) o;
+                    Object idObj = m.get("id");
+                    Object nameObj = m.get("name");
+                    String idStr = idObj != null ? idObj.toString().trim() : "";
+                    if (idStr.isEmpty()) continue;
+                    String nameStr = nameObj != null ? nameObj.toString().trim() : idStr;
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", idStr);
+                    row.put("name", nameStr);
+                    out.add(row);
+                }
+            }
+            if (!out.isEmpty()) {
+                return out;
+            }
+        }
+        List<String> flat = new ArrayList<>();
+        collectPipelinesFromValue(config, flat);
+        for (String s : flat) {
+            if (s == null || s.isBlank()) continue;
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", s);
+            row.put("name", s);
+            out.add(row);
+        }
         return out;
     }
 
+    /**
+     * Recursively collects pipeline ids (not display names) for fallback when top-level {@code pipelines} is absent.
+     */
     @SuppressWarnings("unchecked")
     private static void collectPipelinesFromValue(Object value, List<String> out) {
         if (value == null) return;
@@ -111,8 +160,7 @@ public class TenantQueuesController {
                 for (Map.Entry<String, Object> e : ((Map<String, Object>) pipelines).entrySet()) {
                     String id = e.getKey();
                     if (id == null || id.isBlank()) continue;
-                    String name = pipelineNameFromEntry(id, e.getValue());
-                    if (!name.isEmpty() && !out.contains(name)) out.add(name);
+                    if (!out.contains(id)) out.add(id);
                 }
             } else if (pipelines instanceof List) {
                 for (String s : stringListFrom((List<?>) pipelines)) {

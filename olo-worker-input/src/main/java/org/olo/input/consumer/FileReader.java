@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2026 Olo Labs
- * SPDX-License-Identifier: Apache-2.0
+ * Copyright (c) 2026 Olo Labs. All rights reserved.
  */
 
 package org.olo.input.consumer;

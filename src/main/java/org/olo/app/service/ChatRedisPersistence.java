@@ -39,23 +39,23 @@ public class ChatRedisPersistence {
 
     public ChatRedisPersistence(
             @Autowired(required = false) StringRedisTemplate redisTemplate,
-            @Value("${olo.default-tenant-id:}") String defaultTenantId) {
+            @Value("${olo.default-tenant-id:default}") String defaultTenantId) {
         this.redisTemplate = redisTemplate;
         this.defaultTenantId = (defaultTenantId != null && !defaultTenantId.isBlank())
                 ? defaultTenantId.trim()
-                : "2a2a91fb-f5b4-4cf0-b917-524d242b2e3d";
+                : "default";
     }
 
-    private static String normalizeTenant(String tenantId, String defaultId) {
-        if (tenantId == null || tenantId.isBlank()) return defaultId;
-        String t = tenantId.trim();
-        if ("default".equalsIgnoreCase(t)) return defaultId;
-        return t;
+    private static String effectiveTenantId(String tenantId, String configuredDefault) {
+        if (tenantId == null || tenantId.isBlank()) {
+            return configuredDefault;
+        }
+        return tenantId.trim();
     }
 
     public void saveSession(String tenantId, String sessionId, long createdAt, long lastActivityAt, String queueName, String pipelineId) {
         if (redisTemplate == null) return;
-        String key = normalizeTenant(tenantId, defaultTenantId) + SESSION_PREFIX + sessionId;
+        String key = effectiveTenantId(tenantId, defaultTenantId) + SESSION_PREFIX + sessionId;
         try {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("sessionId", sessionId);
@@ -72,7 +72,7 @@ public class ChatRedisPersistence {
 
     public void touchSession(String tenantId, String sessionId) {
         if (redisTemplate == null) return;
-        String key = normalizeTenant(tenantId, defaultTenantId) + SESSION_PREFIX + sessionId;
+        String key = effectiveTenantId(tenantId, defaultTenantId) + SESSION_PREFIX + sessionId;
         try {
             String raw = redisTemplate.opsForValue().get(key);
             if (raw == null) return;
@@ -88,7 +88,7 @@ public class ChatRedisPersistence {
     /** List sessions for tenant from Redis, optionally filtered by queue and pipeline, sorted by lastActivityAt descending. */
     public List<ChatSessionStore.SessionRecord> listSessionsByTenant(String tenantId, String queueName, String pipelineId) {
         if (redisTemplate == null) return null;
-        String prefix = normalizeTenant(tenantId, defaultTenantId) + SESSION_PREFIX;
+        String prefix = effectiveTenantId(tenantId, defaultTenantId) + SESSION_PREFIX;
         try {
             Set<String> keys = redisTemplate.keys(prefix + "*");
             if (keys == null || keys.isEmpty()) return new ArrayList<>();
@@ -126,7 +126,7 @@ public class ChatRedisPersistence {
 
     public void appendMessage(String tenantId, String sessionId, String messageId, String role, String content, String runId, long createdAt) {
         if (redisTemplate == null) return;
-        String key = normalizeTenant(tenantId, defaultTenantId) + MESSAGES_PREFIX + sessionId;
+        String key = effectiveTenantId(tenantId, defaultTenantId) + MESSAGES_PREFIX + sessionId;
         try {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("messageId", messageId);
@@ -145,7 +145,7 @@ public class ChatRedisPersistence {
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> listMessages(String tenantId, String sessionId) {
         if (redisTemplate == null) return null;
-        String key = normalizeTenant(tenantId, defaultTenantId) + MESSAGES_PREFIX + sessionId;
+        String key = effectiveTenantId(tenantId, defaultTenantId) + MESSAGES_PREFIX + sessionId;
         try {
             List<String> rawList = redisTemplate.opsForList().range(key, 0, -1);
             if (rawList == null || rawList.isEmpty()) return new ArrayList<>();
@@ -166,7 +166,7 @@ public class ChatRedisPersistence {
 
     public void deleteSession(String tenantId, String sessionId) {
         if (redisTemplate == null) return;
-        String prefix = normalizeTenant(tenantId, defaultTenantId);
+        String prefix = effectiveTenantId(tenantId, defaultTenantId);
         try {
             redisTemplate.delete(prefix + SESSION_PREFIX + sessionId);
             redisTemplate.delete(prefix + MESSAGES_PREFIX + sessionId);
@@ -178,7 +178,7 @@ public class ChatRedisPersistence {
     /** Delete all sessions for tenant, optionally limited to queue+pipeline. */
     public void deleteAllForTenant(String tenantId, String queueName, String pipelineId) {
         if (redisTemplate == null) return;
-        String prefix = normalizeTenant(tenantId, defaultTenantId);
+        String prefix = effectiveTenantId(tenantId, defaultTenantId);
         try {
             Set<String> sessionKeys = redisTemplate.keys(prefix + SESSION_PREFIX + "*");
             if (sessionKeys == null) return;

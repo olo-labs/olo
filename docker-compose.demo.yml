@@ -6,7 +6,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "46379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -59,14 +59,14 @@ services:
     environment:
       SERVER_PORT: "7080"
       OLO_CACHE_HOST: redis
-      OLO_CACHE_PORT: "6379"
+      OLO_CACHE_PORT: "46379"
       OLO_CACHE_DATABASE: "0"
       OLO_TEMPORAL_TARGET: temporal:7233
       OLO_TEMPORAL_NAMESPACE: default
       OLO_TEMPORAL_TASK_QUEUE: olo-chat
       OLO_CHAT_CALLBACK_BASE_URL: "http://localhost:7080"
       OLO_WS_JWT_REQUIRED: "false"
-      OLO_DEFAULT_TENANT_ID: "2a2a91fb-f5b4-4cf0-b917-524d242b2e3d"
+      OLO_DEFAULT_TENANT_ID: "default"
     depends_on:
       redis:
         condition: service_healthy

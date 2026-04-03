@@ -1,13 +1,19 @@
+/*
+ * Copyright (c) 2026 Olo Labs. All rights reserved.
+ *
+ * Mirror of olo-worker/olo-worker-configuration — shared with olo backend for the same
+ * Redis snapshot and tenant/region configuration types as the worker.
+ */
 plugins {
-    id 'java'
+    id 'java-library'
 }
 
 group = 'org.olo'
-version = '1.0.0-SNAPSHOT'
+version = '0.0.1-SNAPSHOT'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 repositories {
@@ -15,9 +21,15 @@ repositories {
 }
 
 dependencies {
-    implementation project(':olo-worker-input')
-    implementation project(':olo-worker-execution-tree')
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.16.1'
-    implementation 'redis.clients:jedis:5.2.0'
-    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'org.slf4j:slf4j-api:2.0.16'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.17.2'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.17.2'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.0'
+    testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.16'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
 }

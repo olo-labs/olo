@@ -7,6 +7,7 @@ package org.olo.app.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.olo.app.store.*;
+import org.olo.app.auth.JwtTenantIdDecoder;
 import org.olo.app.ws.DefaultJwtTenantExtractor;
 import org.olo.app.ws.JwtTenantExtractor;
 import org.olo.app.ws.RunEventWebSocketHandler;
@@ -65,14 +66,14 @@ public class DemoConfig {
     }
 
     @Bean
-    public JwtTenantExtractor jwtTenantExtractor(ObjectMapper objectMapper) {
-        return new DefaultJwtTenantExtractor(objectMapper);
+    public JwtTenantExtractor jwtTenantExtractor(JwtTenantIdDecoder jwtTenantIdDecoder) {
+        return new DefaultJwtTenantExtractor(jwtTenantIdDecoder);
     }
 
     @Bean
     public WebSocketAuthHandshakeHandler webSocketAuthHandshakeHandler(JwtTenantExtractor jwtTenantExtractor,
                                                                        @Value("${olo.ws.jwt.required:true}") boolean wsJwtRequired,
-                                                                       @Value("${olo.default-tenant-id:2a2a91fb-f5b4-4cf0-b917-524d242b2e3d}") String defaultTenantId) {
+                                                                       @Value("${olo.default-tenant-id:default}") String defaultTenantId) {
         return new WebSocketAuthHandshakeHandler(new DefaultHandshakeHandler(), jwtTenantExtractor, wsJwtRequired, defaultTenantId);
     }
 

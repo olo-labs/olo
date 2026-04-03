@@ -76,7 +76,7 @@ Olo provides a **chat flow** with planner, optional tool calls, model, and optio
 | **Chat BE**    | REST + SSE + WebSocket API; sessions, messages, runs; **tenants** (GET /api/tenants — default tenant from config, optional Redis-discovered); **queues** (GET /api/tenants/{id}/queues, GET .../queues/{name}/config from Redis keys `<tenantId>:olo:kernel:config:*`); starts/signals workflows via **olo-sdk**; writes execution events; streams events to UI; accepts human input and signals workflow. When Redis is unavailable, tenant and queue APIs return safe defaults (no 500). |
 | **olo-sdk**    | Java library wrapping Temporal SDK; `TemporalClient` owns connection and `WorkflowClient`; used only by Chat BE. |
 | **Temporal**   | Durable workflow execution; task queues; only Chat BE (via olo-sdk) connects. |
-| **Olo Executor** | Separate process: polls Temporal task queue; runs `OloChatWorkflow` and activities (planner, tool, model, human); reports events to Chat BE via HTTP. Not part of the backend. |
+| **Temporal worker** | Separate process: polls the configured task queue, runs the registered workflow type and activities, and reports events to Chat BE via HTTP. **Two options in this ecosystem:** (1) **olo-executor** (Maven) — `OloChatWorkflow` / `OloChatWorkflowImpl`, simple chat path; (2) **olo-worker** (Gradle, often sibling repo **olo-labs**) — **`OloKernelWorkflow`** / `OloKernelWorkflowImpl`, Redis-backed configuration, execution trees, queues such as `olo.<region>.<pipeline>`. The backend workflow type must match the worker (`olo.temporal.workflow-type` / `OLO_WORKFLOW_TYPE`). |
 | **Chat DB**    | Phase 1: sessions, messages, runs, execution event log. Single writer (Chat BE). Later becomes shared store when Admin BE is added. |
 | **Redis** (optional) | Kernel config: keys `<tenantId>:olo:kernel:config:<queueName>` hold queue config JSON. Used by **KernelConfigQueueService** to list queues and return queue config (e.g. pipelines). If Redis is disabled or failing, GET /api/tenants still returns the default tenant; GET .../queues returns []. No 500. |
 
@@ -110,8 +110,10 @@ All execution visibility (planner, tool, model, human) is through **OloExecution
 | **src/**          | Chat BE (Spring Boot): controllers, services, stores, config; uses olo-sdk. Built with Gradle (root `build.gradle`). |
 | **olo-sdk/**      | Temporal client library; `TemporalClient`, see `olo-sdk/docs/ARCHITECTURE.md`. Gradle (`olo-sdk/build.gradle`); included as subproject, built with root `./gradlew build`. |
 | **olo-executor/** | Workflow executor: separate process running workflows and activities; callbacks to Chat BE. Maven-based. Not part of the backend. |
-| **olo-worker-input/** | Serialize and deserialize workflow input (WorkflowInput JSON); model, cache/file handling for large payloads. Gradle subproject; publish to Maven local for olo-executor. |
+| **olo-worker-input/** | Serialize and deserialize workflow input (WorkflowInput JSON); model, cache/file handling for large payloads. Gradle subproject; publish to Maven local for workers. |
 | **docs/**         | DESIGN.md (detailed design), DEMO.md (run instructions), this file. |
+
+In a full **olo-labs** workspace, **olo-worker** (Temporal kernel worker) and **olo** (Chat BE) are often built together; see **`olo-worker/README.md`** and **`olo-worker/docs/architecture/`** for worker-specific bootstrap and configuration.
 
 ### Backend package layout (org.olo.app)
 
@@ -139,7 +141,7 @@ All execution visibility (planner, tool, model, human) is through **OloExecution
 
 - **Chat BE** is the only component that uses **olo-sdk** and talks to **Temporal**. It builds the workflow payload (**WorkflowInput**, via **olo-worker-input** and **WorkflowInputSerializer**), starts the workflow with `stub.start(workflowInput)`, and signals it for human input.
 - **olo-sdk** provides connection and lifecycle only: target, namespace, workflow type, `WorkflowClient`, and `newChatWorkflowStub(WorkflowOptions)`. It does not define workflow semantics; the worker does.
-- **Task queue** can come from the request (e.g. `taskQueue` in CreateRunRequest) or from backend config (`olo.temporal.task-queue`). **Workflow type** is configurable (default `OloKernelWorkflow`, env `OLO_WORKFLOW_TYPE`).
+- **Task queue** can come from the request (e.g. `taskQueue` in CreateRunRequest) or from backend config (`olo.temporal.task-queue`). **Workflow type** must match the worker: default property **`olo.temporal.workflow-type`** is **`OloChatWorkflowImpl`** (olo-executor); for **olo-worker** use **`OloKernelWorkflow`** (interface name). Override with **`OLO_WORKFLOW_TYPE`**.
 
 For a complete explanation of how the SDK and backend work together (config, workflow start, payload format), see **[SDK_AND_BACKEND.md](SDK_AND_BACKEND.md)**.
 

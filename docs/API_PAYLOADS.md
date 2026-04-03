@@ -6,6 +6,10 @@ Simple request/response examples in one place. Use these in Swagger, curl, or te
 
 ## Tenants and queues
 
+### GET /api/ui/context
+
+Optional header: **`Authorization: Bearer &lt;JWT&gt;`**. When present, the response **`tenantId`** is taken from the JWT **`tenantId`** claim (then **`sub`** if `tenantId` is absent). Otherwise **`tenantId`** is **`olo.default-tenant-id`**. The chat UI sends the same token as WebSocket (`sessionStorage.accessToken` or **`VITE_WS_ACCESS_TOKEN`**) so queue/session calls use the user’s tenant.
+
 ### GET /api/tenants
 
 No request body. Used by the UI to populate the tenant dropdown.
@@ -41,14 +45,19 @@ No request body. **Path:** `tenantId`. Returns queue names for Redis keys `<tena
 
 No request body. **Path:** `tenantId`, `queueName`. Returns the JSON value stored at Redis key `<tenantId>:olo:kernel:config:<queueName>`. Used for the Conversation pipeline dropdown (e.g. `pipelines` array).
 
-**Response (200)** — JSON object (queue config). Empty object if key missing or Redis unavailable.
+**Response (200)** — JSON object (queue config). Empty `pipelines` if key missing or Redis unavailable. The `pipelines` field is normalized for the UI as an array of `{ "id", "name" }` (ids match workflow routing; `name` is the dropdown label).
 
 ```json
 {
-  "pipelines": ["default", "rag"],
+  "pipelines": [
+    { "id": "default", "name": "Default chat" },
+    { "id": "rag", "name": "RAG" }
+  ],
   "model": "gpt-4"
 }
 ```
+
+See [QUEUE_PIPELINE_REDIS.md](QUEUE_PIPELINE_REDIS.md) for how to populate Redis keys so queues and pipelines appear in the UI.
 
 ---
 

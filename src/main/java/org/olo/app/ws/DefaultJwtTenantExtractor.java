@@ -5,14 +5,13 @@
 
 package org.olo.app.ws;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import org.olo.app.auth.JwtTenantIdDecoder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.ServerHttpRequest;
 
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 /**
  * Reads JWT from Authorization: Bearer header or from query param (accessToken / token) for WebSocket handshake.
@@ -21,17 +20,17 @@ import java.util.Map;
  */
 public class DefaultJwtTenantExtractor implements JwtTenantExtractor {
 
-    private final ObjectMapper objectMapper;
+    private final JwtTenantIdDecoder jwtTenantIdDecoder;
 
-    public DefaultJwtTenantExtractor(ObjectMapper objectMapper) {
-        this.objectMapper = objectMapper;
+    public DefaultJwtTenantExtractor(JwtTenantIdDecoder jwtTenantIdDecoder) {
+        this.jwtTenantIdDecoder = jwtTenantIdDecoder;
     }
 
     @Override
     public String extractTenantId(ServerHttpRequest request) {
         String token = getTokenFromRequest(request);
         if (token == null || token.isEmpty()) return null;
-        return decodeTenantIdFromJwt(token);
+        return jwtTenantIdDecoder.tenantIdFromJwtToken(token);
     }
 
     private String getTokenFromRequest(ServerHttpRequest request) {
@@ -59,23 +58,5 @@ public class DefaultJwtTenantExtractor implements JwtTenantExtractor {
             }
         }
         return null;
-    }
-
-    private String decodeTenantIdFromJwt(String token) {
-        try {
-            String[] parts = token.split("\\.");
-            if (parts.length < 2) return null;
-            String payloadJson = new String(java.util.Base64.getUrlDecoder().decode(parts[1]), java.nio.charset.StandardCharsets.UTF_8);
-            @SuppressWarnings("unchecked")
-            Map<String, Object> payload = objectMapper.readValue(payloadJson, Map.class);
-            if (payload == null) return null;
-            Object tenantId = payload.get("tenantId");
-            if (tenantId != null && !tenantId.toString().isBlank()) return tenantId.toString();
-            Object sub = payload.get("sub");
-            if (sub != null && !sub.toString().isBlank()) return sub.toString();
-            return null;
-        } catch (Exception e) {
-            return null;
-        }
     }
 }

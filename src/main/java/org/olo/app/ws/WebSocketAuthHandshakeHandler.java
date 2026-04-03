@@ -37,7 +37,7 @@ public class WebSocketAuthHandshakeHandler implements HandshakeHandler {
         this.delegate = delegate;
         this.jwtTenantExtractor = jwtTenantExtractor;
         this.jwtRequired = jwtRequired;
-        this.defaultTenantId = defaultTenantId != null && !defaultTenantId.isBlank() ? defaultTenantId : "2a2a91fb-f5b4-4cf0-b917-524d242b2e3d"; // same as olo.default-tenant-id
+        this.defaultTenantId = defaultTenantId != null && !defaultTenantId.isBlank() ? defaultTenantId.trim() : "default";
     }
 
     @Override

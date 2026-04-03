@@ -1,3 +1,5 @@
 rootProject.name = 'olo-backend'
 include 'olo-sdk'
 include 'olo-worker-input'
+include 'olo-worker-configuration'
+include 'olo-worker-cache'

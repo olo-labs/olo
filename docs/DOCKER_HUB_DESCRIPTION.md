@@ -42,7 +42,7 @@ docker run -p 7080:7080 \
 |----------|-------------|---------|
 | `SERVER_PORT` | HTTP port | `7080` |
 | `OLO_CACHE_HOST` | Redis/cache host | `localhost` |
-| `OLO_CACHE_PORT` | Redis/cache port | `6379` |
+| `OLO_CACHE_PORT` | Redis/cache port | `46379` |
 | `OLO_CACHE_DATABASE` | Redis database index | `0` |
 | `OLO_TEMPORAL_TARGET` | Temporal gRPC address | `localhost:7233` |
 | `OLO_TEMPORAL_NAMESPACE` | Temporal namespace | `default` |
@@ -62,7 +62,7 @@ The project includes Compose files for **dev**, **demo**, and **production**. Se
 services:
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
+    ports: ["46379:6379"]
   temporal:
     image: temporalio/auto-setup:1.24.2
     ports: ["7233:7233"]

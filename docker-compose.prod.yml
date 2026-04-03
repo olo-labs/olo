@@ -16,14 +16,14 @@ services:
     environment:
       SERVER_PORT: "7080"
       OLO_CACHE_HOST: ${OLO_CACHE_HOST:-redis}
-      OLO_CACHE_PORT: ${OLO_CACHE_PORT:-6379}
+      OLO_CACHE_PORT: ${OLO_CACHE_PORT:-46379}
       OLO_CACHE_DATABASE: ${OLO_CACHE_DATABASE:-0}
       OLO_TEMPORAL_TARGET: ${OLO_TEMPORAL_TARGET:-temporal:7233}
       OLO_TEMPORAL_NAMESPACE: ${OLO_TEMPORAL_NAMESPACE:-default}
       OLO_TEMPORAL_TASK_QUEUE: ${OLO_TEMPORAL_TASK_QUEUE:-olo-chat}
       OLO_CHAT_CALLBACK_BASE_URL: ${OLO_CHAT_CALLBACK_BASE_URL:-http://localhost:7080}
       OLO_WS_JWT_REQUIRED: ${OLO_WS_JWT_REQUIRED:-true}
-      OLO_DEFAULT_TENANT_ID: ${OLO_DEFAULT_TENANT_ID:-2a2a91fb-f5b4-4cf0-b917-524d242b2e3d}
+      OLO_DEFAULT_TENANT_ID: ${OLO_DEFAULT_TENANT_ID:-default}
       OLO_SWAGGER_UI_ENABLED: ${OLO_SWAGGER_UI_ENABLED:-false}
     restart: unless-stopped
     # Optional: add a healthcheck if your image has wget/curl (e.g. custom Dockerfile)

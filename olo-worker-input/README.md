@@ -1,3 +1,5 @@
+<!-- Copyright (c) 2026 Olo Labs. All rights reserved. -->
+
 # olo-worker-input
 
 **olo-worker-input** is there to **serialize and deserialize** workflow input for OLO Temporal workflows. It provides the workflow input model (WorkflowInput, inputs, context, routing, metadata), JSON serialization/deserialization, and a consumer/producer abstraction for reading and building payloads.
@@ -7,7 +9,7 @@
 | Package | Responsibility | Main types |
 |---------|-----------------|------------|
 | **`org.olo.input.model`** | Payload DTOs and enums; JSON (de)serialization; fluent builder | `WorkflowInput`, `WorkflowInputBuilder` (use `WorkflowInput.builder()`), `InputItem`, `Storage`, `Context`, `Routing`, `Metadata`, `InputType`, `StorageMode`, `CacheProvider`, `TransactionType` |
-| **`org.olo.input.consumer`** | Read-only contract and resolution | `WorkflowInputValues`, `DefaultWorkflowInputValues`, `CacheReader`, `FileReader` |
+| **`org.olo.input.consumer`** / **`impl`** | Read-only contract and resolution | `WorkflowInputValues`, `DefaultWorkflowInputValues` (in `impl`), `CacheReader`, `FileReader` |
 | **`org.olo.input.producer`** | Building payloads and writing to cache | `WorkflowInputProducer`, `CacheWriter`, `InputStorageKeys` |
 | **`org.olo.input.config`** | Configuration from environment | `MaxLocalMessageSize` |
 
@@ -129,7 +131,7 @@ FileReader fileReader = new FileReader() {
 Build `WorkflowInputValues` (the consumer contract) and pass it to your workflow/activity code. Callers only call getters; they cannot modify the payload.
 
 ```java
-import org.olo.input.consumer.DefaultWorkflowInputValues;
+import org.olo.input.consumer.impl.DefaultWorkflowInputValues;
 import org.olo.input.consumer.WorkflowInputValues;
 
 WorkflowInputValues values = new DefaultWorkflowInputValues(input, cacheReader, fileReader);
@@ -151,7 +153,7 @@ The consumer never touches Redis or file paths directly; they only use `getStrin
 | Role | Access | Packages / types |
 |------|--------|-------------------|
 | **Producer** | Read + write: build payload, set values, decide LOCAL vs CACHE when over max size | `org.olo.input.producer`: `WorkflowInputProducer`, `CacheWriter`; `org.olo.input.model`: `WorkflowInput.toJson()` |
-| **Consumer** | Read-only: get values by name, no storage details | `org.olo.input.consumer`: `WorkflowInputValues`, `DefaultWorkflowInputValues`, `CacheReader`, `FileReader` |
+| **Consumer** | Read-only: get values by name, no storage details | `WorkflowInputValues`, `CacheReader`, `FileReader`; `DefaultWorkflowInputValues` in `org.olo.input.consumer.impl` |
 
 - **Key format** for cache: `olo:worker:{transactionId}:input:{inputName}` (see `org.olo.input.producer.InputStorageKeys.cacheKey()`).
 - **Max local size**: `OLO_MAX_LOCAL_MESSAGE_SIZE` (default 50). Larger strings are stored in Redis and the key is shared in the payload; the consumer still uses `getStringValue("input1")` and gets the value back.

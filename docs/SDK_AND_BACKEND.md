@@ -10,10 +10,10 @@ This document explains how the **olo-sdk** and the **Chat Backend (BE)** work to
 |-----------|------|
 | **Chat BE** | Spring Boot REST + SSE API. Owns sessions, messages, runs, execution events. **Only** service that uses olo-sdk and talks to Temporal. Builds workflow input and starts/signals workflows. |
 | **olo-sdk** | Java library that wraps the Temporal Java SDK. Provides **connection and lifecycle only**: target, namespace, workflow type, `WorkflowClient`, and `newChatWorkflowStub(WorkflowOptions)`. Does **not** define workflow semantics; those live in **olo-worker**. |
-| **olo-worker-input** | Library (used by BE and executor) that defines the **WorkflowInput** model (version 1.0): inputs, context, routing, metadata. BE **serializes** it when building the start payload; executor **deserializes** it in the workflow. |
-| **olo-executor** | Separate process: runs the workflow and activities, calls back to BE via HTTP to append events. Not part of the backend. |
+| **olo-worker-input** | Library (used by BE and workers) that defines the **WorkflowInput** model (version 1.0): inputs, context, routing, metadata. BE **serializes** it when building the start payload; the worker **deserializes** it in the workflow. |
+| **Temporal worker** | Separate process: **olo-executor** (Maven, `OloChatWorkflowImpl`) or **olo-worker** (Gradle kernel, `OloKernelWorkflow` / `OloKernelWorkflowImpl`). Must register the same **workflow type** and **task queue** as the backend. Not part of the backend. |
 
-**Flow:** Frontend → Chat BE → **olo-sdk** (start workflow with **WorkflowInput**) → Temporal → **olo-executor** (executes, callbacks to BE).
+**Flow:** Frontend → Chat BE → **olo-sdk** (start workflow with **WorkflowInput**) → Temporal → **worker** (executes, callbacks to BE).
 
 ---
 
@@ -22,14 +22,14 @@ This document explains how the **olo-sdk** and the **Chat Backend (BE)** work to
 ### 2.1 Scope (intentional)
 
 - **olo-sdk abstracts connection and lifecycle only. It does not abstract workflow semantics.**
-- The SDK provides: configured `WorkflowServiceStubs`, `WorkflowClient`, and a single workflow stub factory. The backend uses `getWorkflowClient()` for signaling by workflow id and `newChatWorkflowStub(WorkflowOptions)` to start the chat workflow. The backend does **not** use workflow type strings; the SDK encapsulates the workflow type name (e.g. `OloKernelWorkflow`).
-- Workflow and activity **logic** live in **olo-executor** (separate process); the SDK is a **connection factory** used only by Chat BE.
+- The SDK provides: configured `WorkflowServiceStubs`, `WorkflowClient`, and a single workflow stub factory. The backend uses `getWorkflowClient()` for signaling by workflow id and `newChatWorkflowStub(WorkflowOptions)` to start the chat workflow. The backend does **not** use workflow type strings in application code; the SDK encapsulates the workflow type name from config (e.g. `OloKernelWorkflow` or `OloChatWorkflowImpl` depending on deployment).
+- Workflow and activity **logic** live in the **Temporal worker** process (e.g. **olo-executor** or **olo-worker**); the SDK is a **connection factory** used only by Chat BE.
 
 ### 2.2 TemporalClient API
 
 | Method | Description |
 |--------|-------------|
-| `static Builder newBuilder()` | Builder with defaults: target `localhost:7233`, namespace `default`, workflow type `OloKernelWorkflow`. |
+| `static Builder newBuilder()` | Builder with defaults: target `localhost:7233`, namespace `default`, workflow type `OloKernelWorkflow` (override to match your worker, e.g. `OloChatWorkflowImpl`). |
 | `WorkflowClient getWorkflowClient()` | Temporal `WorkflowClient` for creating stubs (e.g. signal by workflow id). |
 | `WorkflowStub newChatWorkflowStub(WorkflowOptions options)` | Untyped stub for the Olo chat workflow. Backend uses this to start the workflow; workflow type name is hidden inside the SDK. |
 | `void close()` | Shuts down service stubs; call on application shutdown. |
@@ -40,12 +40,12 @@ This document explains how the **olo-sdk** and the **Chat Backend (BE)** work to
 |--------|-------------|
 | `target(String target)` | gRPC target (e.g. `localhost:7233`). |
 | `namespace(String namespace)` | Temporal namespace (e.g. `default`). |
-| `workflowType(String workflowType)` | Workflow type name (e.g. `OloKernelWorkflow`). Backend sets from env `OLO_WORKFLOW_TYPE` when present. |
+| `workflowType(String workflowType)` | Workflow type name registered by the worker (e.g. `OloKernelWorkflow` for olo-worker, `OloChatWorkflowImpl` for olo-executor default). Backend sets from **`olo.temporal.workflow-type`** or env **`OLO_WORKFLOW_TYPE`**. |
 | `build()` | Builds the client. |
 
 ### 2.3 What the SDK Does *Not* Do
 
-- Does not define or execute workflows or activities (those are in olo-executor).
+- Does not define or execute workflows or activities (those are in the Temporal worker: **olo-executor**, **olo-worker**, etc.).
 - Does not know about WorkflowInput structure; it just passes the object through to Temporal.
 - Does not handle task queue or callback URL; the backend owns those and passes task queue when building `WorkflowOptions`.
 
