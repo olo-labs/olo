@@ -12,7 +12,9 @@ import java.util.Map;
  * CompositeConfigurationSnapshot
  *  ├─ CoreConfigurationSnapshot (ConfigurationSnapshot) — core config, rarely changes
  *  ├─ PipelineRegistry — pipelines, frequent updates
- *  └─ ConnectionRegistry — connections, medium frequency
+ *  ├─ ConnectionRegistry — connections, medium frequency
+ *  ├─ QueueRegistry — queue definitions ({@code olo:config:queues:&lt;region&gt;})
+ *  └─ ProfileRegistry — standalone chat profiles document ({@code olo:config:profiles:&lt;region&gt;})
  * </pre>
  * <p><strong>Fully immutable:</strong> This type must be fully immutable once published. Section maps (pipelines,
  * connections) must be {@link java.util.Collections#unmodifiableMap unmodifiable} or otherwise immutable
@@ -33,6 +35,8 @@ public final class CompositeConfigurationSnapshot {
   public static final String SECTION_CORE = "core";
   public static final String SECTION_PIPELINES = "pipelines";
   public static final String SECTION_CONNECTIONS = "connections";
+  public static final String SECTION_QUEUES = "queues";
+  public static final String SECTION_PROFILES = "profiles";
   /** When this version changes, worker must do full snapshot reload (not per-section). */
   public static final String SECTION_REGIONAL_SETTINGS = "regionalSettings";
 
@@ -42,10 +46,14 @@ public final class CompositeConfigurationSnapshot {
   private volatile ConfigurationSnapshot core;
   private volatile Map<String, Object> pipelines;
   private volatile Map<String, Object> connections;
+  private volatile Map<String, Object> queues;
+  private volatile Map<String, Object> profiles;
 
   private volatile long coreVersion;
   private volatile long pipelinesVersion;
   private volatile long connectionsVersion;
+  private volatile long queuesVersion;
+  private volatile long profilesVersion;
   /** Global region version; if meta.regionalSettings.version != this → full reload. */
   private volatile long regionalSettingsVersion;
 
@@ -74,6 +82,19 @@ public final class CompositeConfigurationSnapshot {
     return ConnectionRegistry.of(connections);
   }
 
+  /** Returns the queue registry (id → config). */
+  public QueueRegistry getQueues() {
+    return QueueRegistry.of(queues);
+  }
+
+  /**
+   * Standalone chat profiles document (same shape as a pipeline's {@code chatProfiles} block, at root:
+   * {@code profileOrder}, {@code profiles}).
+   */
+  public ProfileRegistry getProfiles() {
+    return ProfileRegistry.of(profiles);
+  }
+
   public long getCoreVersion() {
     return coreVersion;
   }
@@ -84,6 +105,14 @@ public final class CompositeConfigurationSnapshot {
 
   public long getConnectionsVersion() {
     return connectionsVersion;
+  }
+
+  public long getQueuesVersion() {
+    return queuesVersion;
+  }
+
+  public long getProfilesVersion() {
+    return profilesVersion;
   }
 
   public long getRegionalSettingsVersion() {
@@ -116,6 +145,22 @@ public final class CompositeConfigurationSnapshot {
     return connections;
   }
 
+  /**
+   * Returns the backing queues map for reuse during refresh when version unchanged (reduces GC).
+   * Do not modify the returned map.
+   */
+  public Map<String, Object> getQueuesForReuse() {
+    return queues;
+  }
+
+  /**
+   * Returns the backing standalone profiles document map for reuse during refresh when version unchanged.
+   * Do not modify the returned map.
+   */
+  public Map<String, Object> getProfilesForReuse() {
+    return profiles;
+  }
+
   /** Sets core and version. For loader use only when building a new composite before publish; never call on a published snapshot. */
   public void setCore(ConfigurationSnapshot core, long version) {
     this.core = core;
@@ -132,6 +177,18 @@ public final class CompositeConfigurationSnapshot {
   public void setConnections(Map<String, Object> connections, long version) {
     this.connections = connections == null || connections.isEmpty() ? Map.of() : Map.copyOf(connections);
     this.connectionsVersion = version;
+  }
+
+  /** Sets queues and version. For loader use only when building a new composite before publish. */
+  public void setQueues(Map<String, Object> queues, long version) {
+    this.queues = queues == null || queues.isEmpty() ? Map.of() : Map.copyOf(queues);
+    this.queuesVersion = version;
+  }
+
+  /** Sets standalone profiles document and version. For loader use only when building a new composite before publish. */
+  public void setProfiles(Map<String, Object> profiles, long version) {
+    this.profiles = profiles == null || profiles.isEmpty() ? Map.of() : Map.copyOf(profiles);
+    this.profilesVersion = version;
   }
 
   /** Sets the regional settings version. For loader use only when building a new composite before publish. */

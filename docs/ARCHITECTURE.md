@@ -72,7 +72,7 @@ Olo provides a **chat flow** with planner, optional tool calls, model, and optio
 
 | Component      | Role |
 |----------------|------|
-| **olo-chat**   | Frontend; calls Chat BE REST APIs; consumes SSE and optional WebSocket for run events and liveness; tenant dropdown (GET /api/tenants); queues under Chat/RAG; queue config for pipeline dropdown. |
+| **olo-chat**   | Frontend; calls Chat BE REST APIs; **`GET /api/ui/context`** exposes optional **chat profiles** (pipeline JSON: queue, pipeline, **`run_again`** → **`runAgain`**, labels, emoji). Consumes SSE and optional WebSocket for run events (UI **dedupes** replay after persisted rehydrate) and liveness; tenant list (**GET /api/tenants**); legacy queues under Chat/RAG and queue config when not in profile mode. |
 | **Chat BE**    | REST + SSE + WebSocket API; sessions, messages, runs; **tenants** (GET /api/tenants — default tenant from config, optional Redis-discovered); **queues** (GET /api/tenants/{id}/queues, GET .../queues/{name}/config from Redis keys `<tenantId>:olo:kernel:config:*`); starts/signals workflows via **olo-sdk**; writes execution events; streams events to UI; accepts human input and signals workflow. When Redis is unavailable, tenant and queue APIs return safe defaults (no 500). |
 | **olo-sdk**    | Java library wrapping Temporal SDK; `TemporalClient` owns connection and `WorkflowClient`; used only by Chat BE. |
 | **Temporal**   | Durable workflow execution; task queues; only Chat BE (via olo-sdk) connects. |

@@ -37,6 +37,7 @@ import java.util.function.Consumer;
  * Recommended layout:
  * olo:config:meta (global meta for all regions),
  * olo:config:core, olo:config:pipelines:&lt;region&gt;, olo:config:connections:&lt;region&gt;,
+ * olo:config:queues:&lt;region&gt;, olo:config:profiles:&lt;region&gt;,
  * olo:config:resources:&lt;region&gt;, olo:config:overrides:tenant:&lt;tenantId&gt;.
  * <p>
  * Backward compatible read support for legacy keys:
@@ -116,8 +117,10 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
       String existingGlobalMetaJson = getString(org.olo.configuration.RedisKeys.configPrefix() + ":meta");
       long pipelinesVer = getSectionVersion(existingMeta, META_BLOCK_PIPELINES);
       long connectionsVer = getSectionVersion(existingMeta, META_BLOCK_CONNECTIONS);
+      long queuesVer = getSectionVersion(existingMeta, META_BLOCK_QUEUES);
+      long profilesVer = getSectionVersion(existingMeta, META_BLOCK_PROFILES);
       String globalMetaJson = metaToJsonNewGlobalMerged(existingGlobalMetaJson, region,
-          snapshot.getVersion(), pipelinesVer, connectionsVer, snapshot.getVersion());
+          snapshot.getVersion(), pipelinesVer, connectionsVer, queuesVer, profilesVer, snapshot.getVersion());
       if (isOverLimit(coreJson, coreKey)
           || isOverLimit(globalMetaJson, org.olo.configuration.RedisKeys.configPrefix() + ":meta")) {
         log.warn("Skipping put to Redis: core or meta value exceeds olo.config.snapshot.max.redis.value.bytes; region={}", region);
@@ -164,8 +167,10 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
       String existingGlobalMetaJson = getString(org.olo.configuration.RedisKeys.configPrefix() + ":meta");
       long coreVer = core.getVersion();
       long connectionsVer = getSectionVersion(existingMeta, META_BLOCK_CONNECTIONS);
+      long queuesVer = getSectionVersion(existingMeta, META_BLOCK_QUEUES);
+      long profilesVer = getSectionVersion(existingMeta, META_BLOCK_PROFILES);
       String globalMetaJson = metaToJsonNewGlobalMerged(existingGlobalMetaJson, region,
-          coreVer, now, connectionsVer, now);
+          coreVer, now, connectionsVer, queuesVer, profilesVer, now);
 
       if (isOverLimit(pipelinesJson, pipelinesKey)
           || isOverLimit(globalMetaJson, org.olo.configuration.RedisKeys.configPrefix() + ":meta")) {
@@ -188,6 +193,94 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
       });
     } catch (Exception e) {
       log.warn("Failed to put pipelines to Redis: {}", e.getMessage());
+    }
+  }
+
+  @Override
+  public void putQueues(String region, Map<String, Object> queues) {
+    if (region == null || region.isEmpty() || queues == null) return;
+    String queuesKey = org.olo.configuration.RedisKeys.configPrefix() + ":queues:" + region;
+    try {
+      ConfigurationSnapshot core = getCore(region);
+      if (core == null) {
+        log.warn("Skipping queues put: core snapshot missing for region={}", region);
+        return;
+      }
+      long now = System.currentTimeMillis();
+      String queuesJson = MAPPER.writeValueAsString(queues);
+      SnapshotMetadata existingMeta = getMeta(region);
+      String existingGlobalMetaJson = getString(org.olo.configuration.RedisKeys.configPrefix() + ":meta");
+      long coreVer = core.getVersion();
+      long pipelinesVer = getSectionVersion(existingMeta, META_BLOCK_PIPELINES);
+      long connectionsVer = getSectionVersion(existingMeta, META_BLOCK_CONNECTIONS);
+      long profilesVer = getSectionVersion(existingMeta, META_BLOCK_PROFILES);
+      String globalMetaJson = metaToJsonNewGlobalMerged(existingGlobalMetaJson, region,
+          coreVer, pipelinesVer, connectionsVer, now, profilesVer, now);
+
+      if (isOverLimit(queuesJson, queuesKey)
+          || isOverLimit(globalMetaJson, org.olo.configuration.RedisKeys.configPrefix() + ":meta")) {
+        log.warn("Skipping putQueues to Redis: queues or meta exceeds olo.config.snapshot.max.redis.value.bytes; region={}", region);
+        return;
+      }
+
+      withConnection(conn -> {
+        RedisCommands<String, String> cmd = conn.sync();
+        cmd.multi();
+        try {
+          cmd.set(queuesKey, queuesJson);
+          cmd.set(org.olo.configuration.RedisKeys.configPrefix() + ":meta", globalMetaJson);
+          cmd.exec();
+        } catch (Exception e) {
+          cmd.discard();
+          throw new RuntimeException(e);
+        }
+      });
+    } catch (Exception e) {
+      log.warn("Failed to put queues to Redis: {}", e.getMessage());
+    }
+  }
+
+  @Override
+  public void putProfiles(String region, Map<String, Object> profiles) {
+    if (region == null || region.isEmpty() || profiles == null) return;
+    String profilesKey = org.olo.configuration.RedisKeys.configPrefix() + ":profiles:" + region;
+    try {
+      ConfigurationSnapshot core = getCore(region);
+      if (core == null) {
+        log.warn("Skipping profiles put: core snapshot missing for region={}", region);
+        return;
+      }
+      long now = System.currentTimeMillis();
+      String profilesJson = MAPPER.writeValueAsString(profiles);
+      SnapshotMetadata existingMeta = getMeta(region);
+      String existingGlobalMetaJson = getString(org.olo.configuration.RedisKeys.configPrefix() + ":meta");
+      long coreVer = core.getVersion();
+      long pipelinesVer = getSectionVersion(existingMeta, META_BLOCK_PIPELINES);
+      long connectionsVer = getSectionVersion(existingMeta, META_BLOCK_CONNECTIONS);
+      long queuesVer = getSectionVersion(existingMeta, META_BLOCK_QUEUES);
+      String globalMetaJson = metaToJsonNewGlobalMerged(existingGlobalMetaJson, region,
+          coreVer, pipelinesVer, connectionsVer, queuesVer, now, now);
+
+      if (isOverLimit(profilesJson, profilesKey)
+          || isOverLimit(globalMetaJson, org.olo.configuration.RedisKeys.configPrefix() + ":meta")) {
+        log.warn("Skipping putProfiles to Redis: profiles or meta exceeds olo.config.snapshot.max.redis.value.bytes; region={}", region);
+        return;
+      }
+
+      withConnection(conn -> {
+        RedisCommands<String, String> cmd = conn.sync();
+        cmd.multi();
+        try {
+          cmd.set(profilesKey, profilesJson);
+          cmd.set(org.olo.configuration.RedisKeys.configPrefix() + ":meta", globalMetaJson);
+          cmd.exec();
+        } catch (Exception e) {
+          cmd.discard();
+          throw new RuntimeException(e);
+        }
+      });
+    } catch (Exception e) {
+      log.warn("Failed to put profiles to Redis: {}", e.getMessage());
     }
   }
 
@@ -252,6 +345,46 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
   }
 
   @Override
+  public Map<String, Object> getQueues(String region) {
+    if (region == null || region.isEmpty()) return null;
+    try {
+      final String[] out = new String[1];
+      String key = org.olo.configuration.RedisKeys.configPrefix() + ":queues:" + region;
+      withConnection(conn -> {
+        RedisCommands<String, String> cmd = conn.sync();
+        out[0] = cmd.get(key);
+      });
+      String json = out[0];
+      if (json == null || json.isBlank()) return null;
+      if (isOverLimit(json, key)) return null;
+      return MAPPER.readValue(json, new TypeReference<Map<String, Object>>() {});
+    } catch (Exception e) {
+      log.error("Failed to get queues from Redis for region={} (invalid or corrupted data); keeping current snapshot, will retry next cycle: {}", region, e.getMessage());
+      return null;
+    }
+  }
+
+  @Override
+  public Map<String, Object> getProfiles(String region) {
+    if (region == null || region.isEmpty()) return null;
+    try {
+      final String[] out = new String[1];
+      String key = org.olo.configuration.RedisKeys.configPrefix() + ":profiles:" + region;
+      withConnection(conn -> {
+        RedisCommands<String, String> cmd = conn.sync();
+        out[0] = cmd.get(key);
+      });
+      String json = out[0];
+      if (json == null || json.isBlank()) return null;
+      if (isOverLimit(json, key)) return null;
+      return MAPPER.readValue(json, new TypeReference<Map<String, Object>>() {});
+    } catch (Exception e) {
+      log.error("Failed to get profiles from Redis for region={} (invalid or corrupted data); keeping current snapshot, will retry next cycle: {}", region, e.getMessage());
+      return null;
+    }
+  }
+
+  @Override
   public Map<String, Object> getResources(String region) {
     if (region == null || region.isEmpty()) return null;
     String key = org.olo.configuration.RedisKeys.configPrefix() + ":resources:" + region;
@@ -301,28 +434,36 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
     }
   }
 
-  /** Optional pipelined read: GET core, pipelines, connections in one round trip (no meta). */
+  /** Optional pipelined read: GET core, pipelines, connections, queues, profiles in one round trip (no meta). */
   public CorePipelinesConnections getCorePipelinesConnectionsBatch(String region) {
     if (region == null || region.isEmpty()) return null;
     String coreKey = org.olo.configuration.RedisKeys.configPrefix() + ":core";
     String pipelinesKey = org.olo.configuration.RedisKeys.configPrefix() + ":pipelines:" + region;
     String connectionsKey = org.olo.configuration.RedisKeys.configPrefix() + ":connections:" + region;
+    String queuesKey = org.olo.configuration.RedisKeys.configPrefix() + ":queues:" + region;
+    String profilesKey = org.olo.configuration.RedisKeys.configPrefix() + ":profiles:" + region;
     try {
       final String[] coreJson = new String[1];
       final String[] pipelinesJson = new String[1];
       final String[] connectionsJson = new String[1];
+      final String[] queuesJson = new String[1];
+      final String[] profilesJson = new String[1];
       withConnection(conn -> {
         RedisAsyncCommands<String, String> async = conn.async();
         async.setAutoFlushCommands(false);
         var fCore = async.get(coreKey);
         var fPipelines = async.get(pipelinesKey);
         var fConnections = async.get(connectionsKey);
+        var fQueues = async.get(queuesKey);
+        var fProfiles = async.get(profilesKey);
         async.flushCommands();
         async.setAutoFlushCommands(true);
         try {
           coreJson[0] = fCore.get();
           pipelinesJson[0] = fPipelines.get();
           connectionsJson[0] = fConnections.get();
+          queuesJson[0] = fQueues.get();
+          profilesJson[0] = fProfiles.get();
         } catch (Exception e) {
           throw new RuntimeException(e);
         }
@@ -330,12 +471,18 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
       if (coreJson[0] != null && isOverLimit(coreJson[0], coreKey)) coreJson[0] = null;
       if (pipelinesJson[0] != null && isOverLimit(pipelinesJson[0], pipelinesKey)) pipelinesJson[0] = null;
       if (connectionsJson[0] != null && isOverLimit(connectionsJson[0], connectionsKey)) connectionsJson[0] = null;
+      if (queuesJson[0] != null && isOverLimit(queuesJson[0], queuesKey)) queuesJson[0] = null;
+      if (profilesJson[0] != null && isOverLimit(profilesJson[0], profilesKey)) profilesJson[0] = null;
       ConfigurationSnapshot core = (coreJson[0] != null && !coreJson[0].isBlank()) ? coreFromJson(coreJson[0], region) : null;
       Map<String, Object> pipelines = (pipelinesJson[0] != null && !pipelinesJson[0].isBlank())
           ? MAPPER.readValue(pipelinesJson[0], new TypeReference<Map<String, Object>>() {}) : null;
       Map<String, Object> connections = (connectionsJson[0] != null && !connectionsJson[0].isBlank())
           ? MAPPER.readValue(connectionsJson[0], new TypeReference<Map<String, Object>>() {}) : null;
-      return new CorePipelinesConnections(core, pipelines, connections);
+      Map<String, Object> queues = (queuesJson[0] != null && !queuesJson[0].isBlank())
+          ? MAPPER.readValue(queuesJson[0], new TypeReference<Map<String, Object>>() {}) : null;
+      Map<String, Object> profiles = (profilesJson[0] != null && !profilesJson[0].isBlank())
+          ? MAPPER.readValue(profilesJson[0], new TypeReference<Map<String, Object>>() {}) : null;
+      return new CorePipelinesConnections(core, pipelines, connections, queues, profiles);
     } catch (ExecutionException e) {
       log.error("Failed to get core/pipelines/connections from Redis; keeping current snapshot, will retry next cycle: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
       return null;
@@ -345,18 +492,22 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
     }
   }
 
-  /** Optional pipelined read: GET meta, core, pipelines, connections in one round trip. */
+  /** Optional pipelined read: GET meta, core, pipelines, connections, queues, profiles in one round trip. */
   public SectionedBatch getSectionedBatch(String region) {
     if (region == null || region.isEmpty()) return null;
     String metaKey = org.olo.configuration.RedisKeys.configPrefix() + ":meta";
     String coreKey = org.olo.configuration.RedisKeys.configPrefix() + ":core";
     String pipelinesKey = org.olo.configuration.RedisKeys.configPrefix() + ":pipelines:" + region;
     String connectionsKey = org.olo.configuration.RedisKeys.configPrefix() + ":connections:" + region;
+    String queuesKey = org.olo.configuration.RedisKeys.configPrefix() + ":queues:" + region;
+    String profilesKey = org.olo.configuration.RedisKeys.configPrefix() + ":profiles:" + region;
     try {
       final String[] metaJson = new String[1];
       final String[] coreJson = new String[1];
       final String[] pipelinesJson = new String[1];
       final String[] connectionsJson = new String[1];
+      final String[] queuesJson = new String[1];
+      final String[] profilesJson = new String[1];
       withConnection(conn -> {
         RedisAsyncCommands<String, String> async = conn.async();
         async.setAutoFlushCommands(false);
@@ -364,6 +515,8 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
         var fCore = async.get(coreKey);
         var fPipelines = async.get(pipelinesKey);
         var fConnections = async.get(connectionsKey);
+        var fQueues = async.get(queuesKey);
+        var fProfiles = async.get(profilesKey);
         async.flushCommands();
         async.setAutoFlushCommands(true);
         try {
@@ -371,6 +524,8 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
           coreJson[0] = fCore.get();
           pipelinesJson[0] = fPipelines.get();
           connectionsJson[0] = fConnections.get();
+          queuesJson[0] = fQueues.get();
+          profilesJson[0] = fProfiles.get();
         } catch (Exception e) {
           throw new RuntimeException(e);
         }
@@ -379,6 +534,8 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
       if (coreJson[0] != null && isOverLimit(coreJson[0], coreKey)) coreJson[0] = null;
       if (pipelinesJson[0] != null && isOverLimit(pipelinesJson[0], pipelinesKey)) pipelinesJson[0] = null;
       if (connectionsJson[0] != null && isOverLimit(connectionsJson[0], connectionsKey)) connectionsJson[0] = null;
+      if (queuesJson[0] != null && isOverLimit(queuesJson[0], queuesKey)) queuesJson[0] = null;
+      if (profilesJson[0] != null && isOverLimit(profilesJson[0], profilesKey)) profilesJson[0] = null;
       SnapshotMetadata meta = null;
       if (metaJson[0] != null && !metaJson[0].isBlank()) {
         meta = metaFromJsonNewGlobal(metaJson[0], region);
@@ -389,7 +546,11 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
           ? MAPPER.readValue(pipelinesJson[0], new TypeReference<Map<String, Object>>() {}) : null;
       Map<String, Object> connections = (connectionsJson[0] != null && !connectionsJson[0].isBlank())
           ? MAPPER.readValue(connectionsJson[0], new TypeReference<Map<String, Object>>() {}) : null;
-      return new SectionedBatch(meta, core, pipelines, connections);
+      Map<String, Object> queues = (queuesJson[0] != null && !queuesJson[0].isBlank())
+          ? MAPPER.readValue(queuesJson[0], new TypeReference<Map<String, Object>>() {}) : null;
+      Map<String, Object> profiles = (profilesJson[0] != null && !profilesJson[0].isBlank())
+          ? MAPPER.readValue(profilesJson[0], new TypeReference<Map<String, Object>>() {}) : null;
+      return new SectionedBatch(meta, core, pipelines, connections, queues, profiles);
     } catch (ExecutionException e) {
       log.error("Failed to get sectioned batch from Redis (connection or I/O); keeping current snapshot, will retry next cycle: {}", e.getCause() != null ? e.getCause().getMessage() : e.getMessage());
       return null;
@@ -425,6 +586,8 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
   private static final String META_BLOCK_CORE = "core";
   private static final String META_BLOCK_PIPELINES = "pipelines";
   private static final String META_BLOCK_CONNECTIONS = "connections";
+  private static final String META_BLOCK_QUEUES = "queues";
+  private static final String META_BLOCK_PROFILES = "profiles";
   private static final String META_BLOCK_REGIONAL_SETTINGS = "regionalSettings";
   private static final String META_KEY_GENERATION = "generation";
   private static final String META_KEY_CHECKSUM = "checksum";
@@ -481,7 +644,7 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
     regionalSettings.put("lastUpdated", s.getLastUpdated().toString());
     Map<String, Object> root = new LinkedHashMap<>();
     root.put(META_KEY_GENERATION, s.getVersion());
-    root.put(META_KEY_CHECKSUM, SnapshotChecksum.compute(s, Map.of(), Map.of()));
+    root.put(META_KEY_CHECKSUM, SnapshotChecksum.compute(s, Map.of(), Map.of(), Map.of(), Map.of()));
     root.put(META_BLOCK_CORE, core);
     root.put(META_BLOCK_REGIONAL_SETTINGS, regionalSettings);
     return MAPPER.writeValueAsString(root);
@@ -497,7 +660,7 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
 
     Map<String, Object> root = new LinkedHashMap<>();
     root.put(META_KEY_GENERATION, ver);
-    root.put(META_KEY_CHECKSUM, SnapshotChecksum.compute(coreSnapshot, pipelines, connections));
+    root.put(META_KEY_CHECKSUM, SnapshotChecksum.compute(coreSnapshot, pipelines, connections, Map.of(), Map.of()));
 
     // Core block always updated to match the core snapshot.
     Map<String, Object> core = new LinkedHashMap<>();
@@ -562,6 +725,8 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
    *       "coreVersion": 1,
    *       "pipelinesVersion": 2,
    *       "connectionsVersion": 3,
+   *       "queuesVersion": 0,
+   *       "profilesVersion": 0,
    *       "regionalSettingsVersion": 2
    *     }
    *   }
@@ -581,6 +746,8 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
     long coreV = entry.get("coreVersion") instanceof Number ? ((Number) entry.get("coreVersion")).longValue() : 0L;
     long pipelinesV = entry.get("pipelinesVersion") instanceof Number ? ((Number) entry.get("pipelinesVersion")).longValue() : 0L;
     long connectionsV = entry.get("connectionsVersion") instanceof Number ? ((Number) entry.get("connectionsVersion")).longValue() : 0L;
+    long queuesV = entry.get("queuesVersion") instanceof Number ? ((Number) entry.get("queuesVersion")).longValue() : 0L;
+    long profilesV = entry.get("profilesVersion") instanceof Number ? ((Number) entry.get("profilesVersion")).longValue() : 0L;
     long regionalV = entry.get("regionalSettingsVersion") instanceof Number ? ((Number) entry.get("regionalSettingsVersion")).longValue() : 0L;
 
     Map<String, BlockMetadata> blocks = new LinkedHashMap<>();
@@ -588,9 +755,16 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
     blocks.put(META_BLOCK_CORE, new BlockMetadata(coreV, Instant.EPOCH));
     if (pipelinesV != 0L) blocks.put(META_BLOCK_PIPELINES, new BlockMetadata(pipelinesV, Instant.EPOCH));
     if (connectionsV != 0L) blocks.put(META_BLOCK_CONNECTIONS, new BlockMetadata(connectionsV, Instant.EPOCH));
+    if (queuesV != 0L) blocks.put(META_BLOCK_QUEUES, new BlockMetadata(queuesV, Instant.EPOCH));
+    if (profilesV != 0L) blocks.put(META_BLOCK_PROFILES, new BlockMetadata(profilesV, Instant.EPOCH));
     blocks.put(META_BLOCK_REGIONAL_SETTINGS, new BlockMetadata(regionalV, Instant.EPOCH));
 
-    long generation = Math.max(Math.max(coreV, pipelinesV), Math.max(connectionsV, regionalV));
+    long generation = coreV;
+    generation = Math.max(generation, pipelinesV);
+    generation = Math.max(generation, connectionsV);
+    generation = Math.max(generation, queuesV);
+    generation = Math.max(generation, profilesV);
+    generation = Math.max(generation, regionalV);
     return new SnapshotMetadata(generation, null, blocks);
   }
 
@@ -606,6 +780,8 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
       long coreVersion,
       long pipelinesVersion,
       long connectionsVersion,
+      long queuesVersion,
+      long profilesVersion,
       long regionalSettingsVersion) throws Exception {
     Map<String, Object> root;
     try {
@@ -630,6 +806,8 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
     entry.put("coreVersion", coreVersion);
     entry.put("pipelinesVersion", pipelinesVersion);
     entry.put("connectionsVersion", connectionsVersion);
+    entry.put("queuesVersion", queuesVersion);
+    entry.put("profilesVersion", profilesVersion);
     entry.put("regionalSettingsVersion", regionalSettingsVersion);
     snapshotsByRegion.put(region, entry);
     root.put(META_KEY_SNAPSHOTS_BY_REGION, snapshotsByRegion);
@@ -652,7 +830,7 @@ public final class RedisConfigurationSnapshotStore implements ConfigurationSnaps
     // Build a sectioned meta structure. We always update pipelines + regionalSettings together so snapshotId changes.
     Map<String, Object> root = new LinkedHashMap<>();
     root.put(META_KEY_GENERATION, version);
-    root.put(META_KEY_CHECKSUM, SnapshotChecksum.compute(core, pipelines, connections));
+    root.put(META_KEY_CHECKSUM, SnapshotChecksum.compute(core, pipelines, connections, Map.of(), Map.of()));
 
     // Preserve existing core/connection blocks if present (avoid rewriting their versions on pipelines update).
     Map<String, BlockMetadata> blocks = existing != null ? existing.getBlocks() : Collections.emptyMap();

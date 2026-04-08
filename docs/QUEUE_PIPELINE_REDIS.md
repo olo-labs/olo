@@ -1,5 +1,7 @@
 # Queue and pipeline dropdowns (Chat UI)
 
+For the **recommended split** between pipeline definitions, execution queues, and UI **profiles**, see [PIPELINE_QUEUE_PROFILE_LAYERS.md](./PIPELINE_QUEUE_PROFILE_LAYERS.md).
+
 The **olo** backend reads the **pipelines section** from Redis (same layout as **olo-worker-configuration**):
 
 | Purpose | Redis key | Value |

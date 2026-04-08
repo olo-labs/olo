@@ -19,7 +19,8 @@ import java.util.Set;
 
 /**
  * Worker path: defaults → env → Redis sectioned config only. Workers never touch DB.
- * Redis layout (recommended): olo:config:meta, olo:config:core:&lt;region&gt;, olo:config:pipelines:&lt;region&gt;, olo:config:connections:&lt;region&gt;.
+ * Redis layout (recommended): olo:config:meta, olo:config:core, olo:config:pipelines:&lt;region&gt;,
+ * olo:config:connections:&lt;region&gt;, olo:config:queues:&lt;region&gt;, olo:config:profiles:&lt;region&gt;.
  * Legacy layout is still supported for reads: olo:configuration:*:&lt;region&gt;.
  */
 public final class RedisSnapshotLoader {
@@ -88,9 +89,19 @@ public final class RedisSnapshotLoader {
       BlockMetadata connBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_CONNECTIONS);
       composite.setConnections(connections, connBlock != null ? connBlock.getVersion() : 0L);
     }
+    Map<String, Object> queues = store.getQueues(region);
+    if (queues != null) {
+      BlockMetadata qBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_QUEUES);
+      composite.setQueues(queues, qBlock != null ? qBlock.getVersion() : 0L);
+    }
+    Map<String, Object> profiles = store.getProfiles(region);
+    if (profiles != null) {
+      BlockMetadata pBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_PROFILES);
+      composite.setProfiles(profiles, pBlock != null ? pBlock.getVersion() : 0L);
+    }
     BlockMetadata regionalBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_REGIONAL_SETTINGS);
     composite.setRegionalSettingsVersion(regionalBlock != null ? regionalBlock.getVersion() : 0L);
-    if (!validateChecksum(region, meta, core, pipelines, connections, "startup")) {
+    if (!validateChecksum(region, meta, core, pipelines, connections, queues, profiles, "startup")) {
       return null;
     }
     warnIfOverLimits(region, pipelines != null ? pipelines.size() : 0, connections != null ? connections.size() : 0);
@@ -130,6 +141,10 @@ public final class RedisSnapshotLoader {
     if (pipBlock != null && pipBlock.getVersion() != composite.getPipelinesVersion()) return true;
     BlockMetadata connBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_CONNECTIONS);
     if (connBlock != null && connBlock.getVersion() != composite.getConnectionsVersion()) return true;
+    BlockMetadata queuesBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_QUEUES);
+    if (queuesBlock != null && queuesBlock.getVersion() != composite.getQueuesVersion()) return true;
+    BlockMetadata profilesBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_PROFILES);
+    if (profilesBlock != null && profilesBlock.getVersion() != composite.getProfilesVersion()) return true;
     return false;
   }
 
@@ -168,7 +183,8 @@ public final class RedisSnapshotLoader {
           log.error("Snapshot load failed for region={} (e.g. missing section or invalid data), keeping current snapshot; will retry next cycle", region);
           return;
         }
-        if (!validateChecksum(region, meta, fresh.getCore(), fresh.getPipelinesForReuse(), fresh.getConnectionsForReuse(), "refresh")) {
+        if (!validateChecksum(region, meta, fresh.getCore(), fresh.getPipelinesForReuse(), fresh.getConnectionsForReuse(),
+            fresh.getQueuesForReuse(), fresh.getProfilesForReuse(), "refresh")) {
           return;
         }
         warnIfOverLimits(region, fresh.getPipelines().size(), fresh.getConnections().size());
@@ -183,7 +199,8 @@ public final class RedisSnapshotLoader {
           log.error("Snapshot load failed for region={} (recovery; e.g. missing section), keeping current snapshot; will retry next cycle", region);
           return;
         }
-        if (!validateChecksum(region, meta, recovered.getCore(), recovered.getPipelinesForReuse(), recovered.getConnectionsForReuse(), "recovery")) {
+        if (!validateChecksum(region, meta, recovered.getCore(), recovered.getPipelinesForReuse(), recovered.getConnectionsForReuse(),
+            recovered.getQueuesForReuse(), recovered.getProfilesForReuse(), "recovery")) {
           return;
         }
         warnIfOverLimits(region, recovered.getPipelines().size(), recovered.getConnections().size());
@@ -206,6 +223,10 @@ public final class RedisSnapshotLoader {
     if (pipBlock != null && pipBlock.getVersion() != current.getPipelinesVersion()) return true;
     BlockMetadata connBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_CONNECTIONS);
     if (connBlock != null && connBlock.getVersion() != current.getConnectionsVersion()) return true;
+    BlockMetadata queuesBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_QUEUES);
+    if (queuesBlock != null && queuesBlock.getVersion() != current.getQueuesVersion()) return true;
+    BlockMetadata profilesBlock = meta.getBlocks().get(CompositeConfigurationSnapshot.SECTION_PROFILES);
+    if (profilesBlock != null && profilesBlock.getVersion() != current.getProfilesVersion()) return true;
     return false;
   }
 
@@ -220,6 +241,8 @@ public final class RedisSnapshotLoader {
       ConfigurationSnapshot core,
       Map<String, Object> pipelines,
       Map<String, Object> connections,
+      Map<String, Object> queues,
+      Map<String, Object> profiles,
       String phase) {
     if (meta == null || core == null) return true;
     org.olo.configuration.Configuration c = ConfigurationProvider.get();
@@ -230,7 +253,7 @@ public final class RedisSnapshotLoader {
           region, phase, meta.getGeneration());
       return false;
     }
-    String actual = SnapshotChecksum.compute(core, pipelines, connections);
+    String actual = SnapshotChecksum.compute(core, pipelines, connections, queues, profiles);
     if (actual == null) {
       log.error("Failed to compute snapshot checksum: region={} phase={} generation={}",
           region, phase, meta.getGeneration());

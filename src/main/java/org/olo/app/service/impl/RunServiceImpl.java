@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +51,8 @@ public class RunServiceImpl implements RunService {
     private final Set<String> assistantPersistedRunIds = ConcurrentHashMap.newKeySet();
     /** RunIds for which we have already persisted the HUMAN decision message (one per run). */
     private final Set<String> humanDecisionPersistedRunIds = ConcurrentHashMap.newKeySet();
+    /** Keys runId/nodeId/sequence for which we persisted the HUMAN WAITING prompt into the conversation. */
+    private final Set<String> humanStepPromptPersistedKeys = ConcurrentHashMap.newKeySet();
 
     public RunServiceImpl(ExecutionEventStore eventStore,
                            RunEventBroadcaster broadcaster,
@@ -160,6 +163,22 @@ public class RunServiceImpl implements RunService {
         eventStore.append(runId, event);
         String derivedStatus = deriveRunStatus(eventStore.getEvents(runId));
         runStore.setStatus(runId, derivedStatus);
+
+        // Persist human-step prompt when worker reports HUMAN WAITING (same text as the human card in the UI).
+        if (NodeType.HUMAN.equals(event.getNodeType()) && NodeStatus.WAITING.equals(event.getStatus())) {
+            String promptText = extractHumanStepPromptText(event.getInput(), event.getMetadata());
+            if (promptText != null && !promptText.isBlank()) {
+                long seq = event.getSequenceNumber() != null ? event.getSequenceNumber() : 0L;
+                String node = event.getNodeId() != null ? event.getNodeId() : "";
+                String dedupeKey = runId + "/" + node + "/" + seq;
+                if (!humanStepPromptPersistedKeys.contains(dedupeKey)) {
+                    List<String> optionLines = extractHumanStepOptionLines(
+                            event.getInput(), event.getMetadata(), event.getOutput());
+                    persistHumanStepPromptMessage(runId, promptText.trim(), optionLines);
+                    humanStepPromptPersistedKeys.add(dedupeKey);
+                }
+            }
+        }
 
         // Persist human decision to conversation history when worker confirms HUMAN COMPLETED.
         if (NodeType.HUMAN.equals(event.getNodeType())
@@ -288,17 +307,119 @@ public class RunServiceImpl implements RunService {
         return null;
     }
 
+    /** Text shown when a HUMAN node is waiting: {@code input}/{@code metadata} keys message, prompt, text, question. */
+    private static String extractHumanStepPromptText(Map<String, Object> input, Map<String, Object> metadata) {
+        String s = firstNonBlankString(input, "message", "prompt", "text", "question");
+        if (s != null) return s;
+        return firstNonBlankString(metadata, "message", "prompt", "text", "question");
+    }
+
+    private static String firstNonBlankString(Map<String, Object> map, String... keys) {
+        if (map == null || map.isEmpty()) return null;
+        for (String k : keys) {
+            Object v = map.get(k);
+            if (v instanceof String str) {
+                String t = str.trim();
+                if (!t.isEmpty()) return t;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Worker sends {@code options} on {@code input} (preferred), or {@code metadata} / {@code output}:
+     * list of strings, or list of maps with {@code label} or {@code text}.
+     */
+    private static List<String> extractHumanStepOptionLines(
+            Map<String, Object> input, Map<String, Object> metadata, Map<String, Object> output) {
+        List<?> raw = firstOptionsList(input, metadata, output);
+        return normalizeOptionsToLines(raw);
+    }
+
+    private static List<?> firstOptionsList(
+            Map<String, Object> input, Map<String, Object> metadata, Map<String, Object> output) {
+        Object o = getOptionsRaw(input);
+        if (o == null) o = getOptionsRaw(metadata);
+        if (o == null) o = getOptionsRaw(output);
+        return o instanceof List<?> list ? list : null;
+    }
+
+    private static Object getOptionsRaw(Map<String, Object> map) {
+        if (map == null || map.isEmpty()) return null;
+        return map.get("options");
+    }
+
+    private static List<String> normalizeOptionsToLines(List<?> raw) {
+        if (raw == null || raw.isEmpty()) return List.of();
+        List<String> lines = new ArrayList<>();
+        for (Object item : raw) {
+            if (item instanceof String s && !s.isBlank()) {
+                lines.add(s.trim());
+            } else if (item instanceof Map<?, ?> m) {
+                Object label = m.get("label");
+                if (label == null) label = m.get("text");
+                if (label != null) {
+                    String t = label.toString().trim();
+                    if (!t.isEmpty()) lines.add(t);
+                }
+            }
+        }
+        return List.copyOf(lines);
+    }
+
     private static String extractHumanDecisionText(Map<String, Object> output) {
         if (output == null || output.isEmpty()) return null;
         Object message = output.get("message");
         if (message instanceof String msg && !msg.trim().isEmpty()) return msg.trim();
         Object response = output.get("response");
         if (response instanceof String r && !r.trim().isEmpty()) return r.trim();
-        Object approved = output.get("approved");
-        if (approved instanceof Boolean b) {
-            return b ? "Yes, use dynamic flow" : "No, direct response only";
-        }
+        // Submitted label/text is in message/response from the worker signal; do not synthesize from approved alone.
         return null;
+    }
+
+    /**
+     * Conversation text: {@code User Input Step: …} on the first line, then one line per worker option
+     * (no {@code <Options>} marker or blank line between).
+     */
+    static String formatHumanStepPromptForConversation(String promptText, List<String> optionLines) {
+        String q = promptText != null ? promptText.trim() : "";
+        StringBuilder sb = new StringBuilder();
+        if (q.isEmpty()) {
+            sb.append("User Input Step:");
+        } else {
+            sb.append("User Input Step: ").append(q);
+        }
+        if (optionLines != null) {
+            for (String line : optionLines) {
+                if (line != null && !line.isBlank()) {
+                    sb.append("\n").append(line.trim());
+                }
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Persists the human-step question as an assistant line so it appears in GET .../messages history. */
+    private void persistHumanStepPromptMessage(String runId, String promptText, List<String> optionLines) {
+        if (promptText == null || promptText.isBlank()) return;
+        String body = formatHumanStepPromptForConversation(promptText, optionLines != null ? optionLines : List.of());
+        RunChatContext context = resolveRunChatContext(runId);
+        if (context == null || context.sessionId == null || context.sessionId.isBlank()) return;
+        String messageId = UUID.randomUUID().toString();
+        long createdAt = System.currentTimeMillis();
+        if (redisPersistence != null && context.tenantId != null) {
+            try {
+                redisPersistence.touchSession(context.tenantId, context.sessionId);
+                redisPersistence.appendMessage(context.tenantId, context.sessionId, messageId,
+                        "assistant", body, runId, createdAt);
+            } catch (Exception e) {
+                log.warn("Failed to persist human-step prompt to Redis runId={}", runId, e);
+            }
+        }
+        if (messageStore != null) {
+            messageStore.put(new ChatMessageStore.MessageRecord(
+                    messageId, context.sessionId, "assistant", body, runId));
+        }
     }
 
     private void persistUserConversationMessage(String runId, String content) {

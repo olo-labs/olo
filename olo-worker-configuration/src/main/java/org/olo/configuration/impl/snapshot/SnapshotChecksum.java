@@ -28,13 +28,24 @@ public final class SnapshotChecksum {
 
   private SnapshotChecksum() {}
 
-  public static String compute(ConfigurationSnapshot core, Map<String, Object> pipelines, Map<String, Object> connections) {
+  /**
+   * SHA-256 over canonical JSON of core, pipelines, connections, queues, and profiles (empty maps when null).
+   * Queues and profiles correspond to {@code olo:config:queues:&lt;region&gt;} and {@code olo:config:profiles:&lt;region&gt;}.
+   */
+  public static String compute(
+      ConfigurationSnapshot core,
+      Map<String, Object> pipelines,
+      Map<String, Object> connections,
+      Map<String, Object> queues,
+      Map<String, Object> profiles) {
     if (core == null) return null;
     try {
       String coreJson = CANONICAL_JSON.writeValueAsString(canonicalize(coreToMap(core)));
       String pipelinesJson = CANONICAL_JSON.writeValueAsString(canonicalize(pipelines == null ? Map.of() : pipelines));
       String connectionsJson = CANONICAL_JSON.writeValueAsString(canonicalize(connections == null ? Map.of() : connections));
-      return sha256Hex(coreJson + pipelinesJson + connectionsJson);
+      String queuesJson = CANONICAL_JSON.writeValueAsString(canonicalize(queues == null ? Map.of() : queues));
+      String profilesJson = CANONICAL_JSON.writeValueAsString(canonicalize(profiles == null ? Map.of() : profiles));
+      return sha256Hex(coreJson + pipelinesJson + connectionsJson + queuesJson + profilesJson);
     } catch (Exception e) {
       return null;
     }

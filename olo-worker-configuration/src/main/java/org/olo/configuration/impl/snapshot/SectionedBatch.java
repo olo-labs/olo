@@ -10,8 +10,8 @@ import org.olo.configuration.snapshot.SnapshotMetadata;
 import java.util.Map;
 
 /**
- * Result of a single pipelined Redis read: meta, core, pipelines, connections.
- * Used during refresh to reduce round trips (one pipeline instead of four sequential GETs).
+ * Result of a single pipelined Redis read: meta, core, pipelines, connections, queues, profiles.
+ * Used during refresh to reduce round trips (one pipeline instead of many sequential GETs).
  */
 public final class SectionedBatch {
 
@@ -19,13 +19,18 @@ public final class SectionedBatch {
   private final ConfigurationSnapshot core;
   private final Map<String, Object> pipelines;
   private final Map<String, Object> connections;
+  private final Map<String, Object> queues;
+  private final Map<String, Object> profiles;
 
   public SectionedBatch(SnapshotMetadata meta, ConfigurationSnapshot core,
-                        Map<String, Object> pipelines, Map<String, Object> connections) {
+                        Map<String, Object> pipelines, Map<String, Object> connections,
+                        Map<String, Object> queues, Map<String, Object> profiles) {
     this.meta = meta;
     this.core = core;
     this.pipelines = pipelines;
     this.connections = connections;
+    this.queues = queues;
+    this.profiles = profiles;
   }
 
   public SnapshotMetadata getMeta() {
@@ -42,5 +47,13 @@ public final class SectionedBatch {
 
   public Map<String, Object> getConnections() {
     return connections;
+  }
+
+  public Map<String, Object> getQueues() {
+    return queues;
+  }
+
+  public Map<String, Object> getProfiles() {
+    return profiles;
   }
 }

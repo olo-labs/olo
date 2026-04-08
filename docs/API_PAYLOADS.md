@@ -10,6 +10,29 @@ Simple request/response examples in one place. Use these in Swagger, curl, or te
 
 Optional header: **`Authorization: Bearer &lt;JWT&gt;`**. When present, the response **`tenantId`** is taken from the JWT **`tenantId`** claim (then **`sub`** if `tenantId` is absent). Otherwise **`tenantId`** is **`olo.default-tenant-id`**. The chat UI sends the same token as WebSocket (`sessionStorage.accessToken` or **`VITE_WS_ACCESS_TOKEN`**) so queue/session calls use the user’s tenant.
 
+When the chat backend has loaded a Redis **pipelines** snapshot for the tenant’s region, any pipeline JSON that includes a **`chatProfiles`** object contributes UI presets (each maps to a Temporal **queue** + **pipeline**). The first pipeline in the snapshot that defines **`chatProfiles`** wins. If the resolved list is non-empty, **olo-chat** uses **presets** only (see [PIPELINE_QUEUE_PROFILE_LAYERS.md](./PIPELINE_QUEUE_PROFILE_LAYERS.md) for the recommended separation of **pipelines**, **queues**, and **profiles**).
+
+Per-preset fields in **pipeline JSON** under `chatProfiles.profiles` (each profile id as key) include optional **`run_again`** (boolean). When **true**, the preset is offered in the chat **Run again** menu (icon under user messages); each menu row shows **emoji + display name** (same labeling as the preset control). When **false** or omitted, the UI treats it as **false** for that menu (the preset may still appear in the composer dropdown). The API exposes this as **`runAgain`** on each **`chatProfiles`** entry.
+
+```json
+{
+  "tenantId": "2a2a91fb-f5b4-4cf0-b917-524d242b2e3d",
+  "tenant": "Default",
+  "user": "Public",
+  "oloVersion": "v1.0.0-Dev",
+  "chatProfiles": [
+    {
+      "id": "fast",
+      "displayName": "Fast Response",
+      "displaySummary": "Quick replies with a fast, lightweight model.",
+      "queue": "olo-fast-queue",
+      "pipeline": "fast-pipeline",
+      "runAgain": true
+    }
+  ]
+}
+```
+
 ### GET /api/tenants
 
 No request body. Used by the UI to populate the tenant dropdown.

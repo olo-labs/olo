@@ -251,15 +251,21 @@ public final class Bootstrap {
       if (config == null) {
         throw new IllegalStateException("Configuration not set after loading worker region");
       }
-      // Backfill pipelines (and thus keys olo:config:pipelines:<region>) for any served region missing from Redis
+      // Backfill pipelines from DB when missing; then read-through for queues/profiles (DB olo_config_section or derived from pipeline JSON).
+      PipelineSectionBuilder sectionBuilder = new PipelineSectionBuilder(
+          conn.hasDb() ? conn.getJdbcUrl() : "",
+          conn.hasDb() ? conn.getDbUsername() : "",
+          conn.hasDb() ? conn.getDbPassword() : "",
+          store);
       if (conn.hasDb()) {
-        PipelineSectionBuilder pb = new PipelineSectionBuilder(
-            conn.getJdbcUrl(), conn.getDbUsername(), conn.getDbPassword(), store);
         for (String region : servedRegions) {
           if (store.getPipelines(region) == null) {
-            pb.buildAndStore(region);
+            sectionBuilder.buildAndStore(region);
           }
         }
+      }
+      for (String region : servedRegions) {
+        sectionBuilder.ensureQueuesAndProfiles(region);
       }
       Map<String, CompositeConfigurationSnapshot> snapshotMap = new LinkedHashMap<>();
       CompositeConfigurationSnapshot workerComposite = ConfigurationProvider.getComposite();
@@ -317,6 +323,12 @@ public final class Bootstrap {
           // Pipelines must be consumed from Redis. If missing, backfill from DB then proceed.
           Map<String, Object> pipelines = store.getPipelines(region);
           if (pipelines != null) {
+            PipelineSectionBuilder pb = new PipelineSectionBuilder(
+                conn.hasDb() ? conn.getJdbcUrl() : "",
+                conn.hasDb() ? conn.getDbUsername() : "",
+                conn.hasDb() ? conn.getDbPassword() : "",
+                store);
+            pb.ensureQueuesAndProfiles(region);
             closeIfNeeded(store);
             log.info("Configuration store available for region={} (core+meta+pipes)", region);
             return;

@@ -24,6 +24,10 @@ public interface ConfigurationSnapshotStore {
   String PIPELINES_KEY_PREFIX = NAMESPACE + ":pipelines:";
   /** Connections (medium). Key: {@value #CONNECTIONS_KEY_PREFIX}&lt;region&gt; */
   String CONNECTIONS_KEY_PREFIX = NAMESPACE + ":connections:";
+  /** Queue definitions. Key: {@value #QUEUES_KEY_PREFIX}&lt;region&gt; */
+  String QUEUES_KEY_PREFIX = NAMESPACE + ":queues:";
+  /** Standalone chat profiles document. Key: {@value #PROFILES_KEY_PREFIX}&lt;region&gt; */
+  String PROFILES_KEY_PREFIX = NAMESPACE + ":profiles:";
   /** Resources (frequent-ish). Key: {@value #RESOURCES_KEY_PREFIX}&lt;region&gt; */
   String RESOURCES_KEY_PREFIX = NAMESPACE + ":resources:";
   /** Tenant overrides. Key: {@value #TENANT_OVERRIDES_KEY_PREFIX}&lt;tenantId&gt; */
@@ -53,6 +57,22 @@ public interface ConfigurationSnapshotStore {
   }
 
   /**
+   * Stores queues section for the region and updates snapshot metadata accordingly.
+   * Default: no-op.
+   */
+  default void putQueues(String region, Map<String, Object> queues) {
+    // Default no-op.
+  }
+
+  /**
+   * Stores standalone profiles section for the region and updates snapshot metadata accordingly.
+   * Default: no-op.
+   */
+  default void putProfiles(String region, Map<String, Object> profiles) {
+    // Default no-op.
+  }
+
+  /**
    * Returns core config snapshot for the region. Required for sectioned load.
    */
   default ConfigurationSnapshot getCore(String region) {
@@ -70,6 +90,22 @@ public interface ConfigurationSnapshotStore {
    * Returns connections map for the region (sectioned key). Default: null.
    */
   default Map<String, Object> getConnections(String region) {
+    return null;
+  }
+
+  /**
+   * Returns queue definitions for the region (sectioned key: {@value #QUEUES_KEY_PREFIX}&lt;region&gt;).
+   * Default: null.
+   */
+  default Map<String, Object> getQueues(String region) {
+    return null;
+  }
+
+  /**
+   * Returns standalone chat profiles JSON as a map (sectioned key: {@value #PROFILES_KEY_PREFIX}&lt;region&gt;).
+   * Default: null.
+   */
+  default Map<String, Object> getProfiles(String region) {
     return null;
   }
 

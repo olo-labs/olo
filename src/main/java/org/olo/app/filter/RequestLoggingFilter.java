@@ -58,13 +58,18 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         msg.append("REQUEST ").append(method).append(" ").append(fullUri);
 
         if (isRequestBodySupported(method)) {
-            byte[] buf = request.getContentAsByteArray();
-            if (buf != null && buf.length > 0) {
-                String body = new String(buf, StandardCharsets.UTF_8);
-                if (body.length() > MAX_BODY_LOG_LENGTH) {
-                    body = body.substring(0, MAX_BODY_LOG_LENGTH) + "... [truncated]";
+            String ct = request.getContentType();
+            if (ct != null && ct.toLowerCase().startsWith("multipart/")) {
+                msg.append(" body=<multipart omitted; see ResourceUploadController/ResourceUploadService logs>");
+            } else {
+                byte[] buf = request.getContentAsByteArray();
+                if (buf != null && buf.length > 0) {
+                    String body = new String(buf, StandardCharsets.UTF_8);
+                    if (body.length() > MAX_BODY_LOG_LENGTH) {
+                        body = body.substring(0, MAX_BODY_LOG_LENGTH) + "... [truncated]";
+                    }
+                    msg.append(" body=").append(body);
                 }
-                msg.append(" body=").append(body);
             }
         }
 
