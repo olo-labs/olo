@@ -1,0 +1,652 @@
+package org.olo.definition.samples;
+
+import org.olo.definition.edge.EdgeDefinition;
+import org.olo.definition.error.ErrorRoute;
+import org.olo.definition.error.OnFailureDefinition;
+import org.olo.definition.error.RetryPolicy;
+import org.olo.definition.extension.ExtensionDefinition;
+import org.olo.definition.hook.HookActionDefinition;
+import org.olo.definition.hook.HookDefinition;
+import org.olo.definition.hook.NodeHooksDefinition;
+import org.olo.definition.human.HumanApprovalDefinition;
+import org.olo.definition.model.ModelProviderDefinition;
+import org.olo.definition.model.ModelRoutingDefinition;
+import org.olo.definition.node.NodeDefinition;
+import org.olo.definition.node.NodeRouterDefinition;
+import org.olo.definition.node.NodeType;
+import org.olo.definition.port.PortDefinition;
+import org.olo.definition.input.WorkflowInputDefinition;
+import org.olo.definition.state.StateFieldDefinition;
+import org.olo.definition.variable.VariableDefinition;
+import org.olo.definition.execution.ExecutionKind;
+import org.olo.definition.parallel.JoinDefinition;
+import org.olo.definition.parallel.JoinStrategy;
+import org.olo.definition.workflow.ChildWorkflowDefinition;
+import org.olo.definition.workflow.WorkflowBuilder;
+import org.olo.definition.agent.AgentDefinition;
+import org.olo.definition.capability.CapabilityDefinition;
+import org.olo.definition.runtime.RuntimeBindingDefinition;
+import org.olo.definition.tool.ToolDefinition;
+import org.olo.definition.workflow.WorkflowDefinition;
+import org.olo.definition.workflow.WorkflowReferenceDefinition;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Programmatic builders mirroring workflows under {@code samples/}.
+ */
+final class SampleWorkflowDefinitions {
+
+    private SampleWorkflowDefinitions() {
+    }
+
+    private static CapabilityDefinition passThroughCapability(String name, String description) {
+        return CapabilityDefinition.builder()
+                .name(name)
+                .description(description)
+                .addInput("input")
+                .addOutput("output")
+                .build();
+    }
+
+    private static NodeDefinition.Builder nodeWithDefaultPorts(String id, NodeType type) {
+        NodeDefinition.Builder builder = NodeDefinition.builder().id(id).type(type);
+        if (type != NodeType.INPUT) {
+            builder.addPort(PortDefinition.inputPort("in", "any"));
+        }
+        if (type != NodeType.OUTPUT) {
+            builder.addPort(PortDefinition.outputPort("out", "any"));
+        }
+        return builder;
+    }
+
+    static WorkflowDefinition minimalEcho() {
+        return WorkflowBuilder.create("Minimal Echo")
+                .id("minimal-echo")
+                .version("1.0.0")
+                .capability(passThroughCapability(
+                        "Minimal Echo", "Smallest valid OLO workflow: passes input through to output."))
+                .inputNode("input")
+                .outputNode("output")
+                .connect("input", "output")
+                .metadata("description", "Smallest valid OLO workflow: passes input through to output.")
+                .build();
+    }
+
+    static WorkflowDefinition stockAnalysis() {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", Map.of(
+                "symbol", Map.of("type", "string"),
+                "question", Map.of("type", "string")));
+        schema.put("required", List.of("symbol"));
+
+        return WorkflowBuilder.create("Stock Workflow")
+                .id("stock-analysis")
+                .version("1.0.0")
+                .capability(CapabilityDefinition.builder()
+                        .name("Stock Analysis Workflow")
+                        .description(
+                                "Produces investment analysis by combining technical, sector, risk and news analysis.")
+                        .addInput("symbol")
+                        .addInput("question")
+                        .addOutput("stocks")
+                        .addTag("finance")
+                        .addTag("demo")
+                        .build())
+                .tool(ToolDefinition.builder()
+                        .id("screener-tool")
+                        .capability(CapabilityDefinition.builder()
+                                .name("Stock Screener")
+                                .description(
+                                        "Filters stocks based on volume, RSI, moving averages and price action.")
+                                .addExample("Find breakout candidates")
+                                .addExample("Find oversold stocks")
+                                .build())
+                        .runtimeBinding(RuntimeBindingDefinition.builder()
+                                .implementationId("stock-screener")
+                                .build())
+                        .build())
+                .addNode(nodeWithDefaultPorts("request", NodeType.INPUT)
+                        .putConfiguration("schema", schema)
+                        .build())
+                .addNode(nodeWithDefaultPorts("analysis", NodeType.MODEL)
+                        .subtype("CHAT")
+                        .putConfiguration("providerRef", "openai-default")
+                        .putConfiguration(
+                                "systemPrompt",
+                                "You are a financial analyst. Use screener data when available.")
+                        .putConfiguration("temperature", 0.2)
+                        .onFailure(OnFailureDefinition.builder()
+                                .retry(RetryPolicy.builder().attempts(3).build())
+                                .route(ErrorRoute.builder().targetNodeId("fallback-model").build())
+                                .build())
+                        .hooks(NodeHooksDefinition.builder()
+                                .addPre(HookActionDefinition.builder().implementationId("tracing-start").build())
+                                .addOnError(HookActionDefinition.builder().implementationId("audit-error").build())
+                                .build())
+                        .build())
+                .addNode(nodeWithDefaultPorts("fallback-model", NodeType.MODEL)
+                        .subtype("CHAT")
+                        .putConfiguration("providerRef", "ollama-fallback")
+                        .putConfiguration("temperature", 0.1)
+                        .build())
+                .addNode(nodeWithDefaultPorts("screener", NodeType.TOOL)
+                        .putConfiguration("toolRef", "screener-tool")
+                        .putConfiguration("timeoutSeconds", 30)
+                        .addPort(PortDefinition.outputPort("stockList", "Stock[]"))
+                        .build())
+                .addNode(NodeDefinition.builder()
+                        .id("response")
+                        .type(NodeType.OUTPUT)
+                        .addPort(PortDefinition.inputPort("stocks", "Stock[]"))
+                        .build())
+                .connect("request", "analysis")
+                .connect("analysis", "screener")
+                .connect("screener", "stockList", "response", "stocks")
+                .input("symbol", WorkflowInputDefinition.builder()
+                        .schema("string")
+                        .required(true)
+                        .description("Ticker symbol to analyze")
+                        .build())
+                .modelProvider(ModelProviderDefinition.builder()
+                        .id("openai-default")
+                        .provider("openai")
+                        .model("gpt-4o")
+                        .putConfiguration("apiKeyRef", "${env:OPENAI_API_KEY}")
+                        .build())
+                .modelProvider(ModelProviderDefinition.builder()
+                        .id("ollama-fallback")
+                        .provider("ollama")
+                        .model("llama3.2")
+                        .putConfiguration("baseUrl", "http://localhost:11434")
+                        .build())
+                .metadata("author", "olo-samples")
+                .metadata("tags", List.of("finance", "demo"))
+                .hook(HookDefinition.builder()
+                        .id("tracing")
+                        .pattern("analysis.*")
+                        .pre(HookActionDefinition.builder().implementationId("tracing-start").build())
+                        .onFinally(HookActionDefinition.builder().implementationId("tracing-end").build())
+                        .build())
+                .hook(HookDefinition.builder()
+                        .id("metrics")
+                        .pattern("**")
+                        .pre(HookActionDefinition.builder().implementationId("metrics-start").build())
+                        .onFinally(HookActionDefinition.builder().implementationId("metrics-stop").build())
+                        .build())
+                .hook(HookDefinition.builder()
+                        .id("audit")
+                        .pattern("trading.*")
+                        .onError(HookActionDefinition.builder().implementationId("audit-error").build())
+                        .build())
+                .build();
+    }
+
+    static WorkflowDefinition ragChat() {
+        return WorkflowBuilder.create("RAG Chat")
+                .id("rag-chat")
+                .version("1.0.0")
+                .capability(passThroughCapability(
+                        "RAG Chat", "Retrieve-augmented generation over a vector store."))
+                .inputNode("input")
+                .addNode(nodeWithDefaultPorts("embed", NodeType.MODEL)
+                        .subtype("EMBEDDING")
+                        .putConfiguration("providerRef", "openai-embeddings")
+                        .build())
+                .addNode(nodeWithDefaultPorts("retrieve", NodeType.VECTOR_SEARCH)
+                        .putConfiguration("extensionRef", "pgvector-store")
+                        .putConfiguration("topK", 5)
+                        .putConfiguration("scoreThreshold", 0.75)
+                        .build())
+                .addNode(nodeWithDefaultPorts("llm1", NodeType.MODEL)
+                        .subtype("CHAT")
+                        .putConfiguration("providerRef", "openai-default")
+                        .putConfiguration("systemPrompt", "Answer using only the provided context.")
+                        .build())
+                .outputNode("output")
+                .connect("input", "embed")
+                .connect("embed", "retrieve")
+                .connect("retrieve", "llm1")
+                .connect("llm1", "output")
+                .modelProvider(ModelProviderDefinition.builder()
+                        .id("openai-default")
+                        .provider("openai")
+                        .model("gpt-4o-mini")
+                        .build())
+                .modelProvider(ModelProviderDefinition.builder()
+                        .id("openai-embeddings")
+                        .provider("openai")
+                        .model("text-embedding-3-small")
+                        .build())
+                .modelRouting(ModelRoutingDefinition.builder()
+                        .id("default-routing")
+                        .defaultProviderId("openai-default")
+                        .rules(List.of(ModelRoutingDefinition.RoutingRule.builder()
+                                .name("long-context")
+                                .providerId("openai-default")
+                                .match(Map.of("tokenEstimateGt", 8000))
+                                .build()))
+                        .build())
+                .extension(ExtensionDefinition.builder()
+                        .id("pgvector-store")
+                        .type("VECTOR_STORE")
+                        .putConfiguration("driver", "postgresql")
+                        .putConfiguration("connectionRef", "${env:VECTOR_DB_URL}")
+                        .putConfiguration("table", "documents")
+                        .build())
+                .metadata(
+                        "description",
+                        "Retrieve-augmented generation over a vector store.")
+                .build();
+    }
+
+    static WorkflowDefinition analysisBase() {
+        return WorkflowBuilder.create("Analysis")
+                .id("analysis")
+                .version("1.0.0")
+                .capability(passThroughCapability("Analysis", "Single-model analysis workflow."))
+                .inputNode("input")
+                .addNode(nodeWithDefaultPorts("llm1", NodeType.MODEL)
+                        .subtype("CHAT")
+                        .putConfiguration("providerRef", "ollama-local")
+                        .build())
+                .outputNode("output")
+                .connect("input", "llm1")
+                .connect("llm1", "output")
+                .modelProvider(ModelProviderDefinition.builder()
+                        .id("ollama-local")
+                        .provider("ollama")
+                        .model("llama3.2")
+                        .putConfiguration("baseUrl", "http://localhost:11434")
+                        .build())
+                .metadata(
+                        "description",
+                        "Base workflow before RAG extension (see workflow-extended.json).")
+                .build();
+    }
+
+    static WorkflowDefinition analysisExtended() {
+        return WorkflowBuilder.create("Analysis with RAG")
+                .id("analysis")
+                .version("1.1.0")
+                .capability(passThroughCapability(
+                        "Analysis with RAG", "Analysis workflow extended with vector retrieval."))
+                .inputNode("input")
+                .addNode(nodeWithDefaultPorts("rag1", NodeType.VECTOR_SEARCH)
+                        .putConfiguration("extensionRef", "local-chroma")
+                        .putConfiguration("topK", 3)
+                        .build())
+                .addNode(nodeWithDefaultPorts("llm1", NodeType.MODEL)
+                        .subtype("CHAT")
+                        .putConfiguration("providerRef", "ollama-local")
+                        .build())
+                .outputNode("output")
+                .connect("input", "rag1")
+                .connect("rag1", "llm1")
+                .connect("llm1", "output")
+                .modelProvider(ModelProviderDefinition.builder()
+                        .id("ollama-local")
+                        .provider("ollama")
+                        .model("llama3.2")
+                        .putConfiguration("baseUrl", "http://localhost:11434")
+                        .build())
+                .extension(ExtensionDefinition.builder()
+                        .id("local-chroma")
+                        .type("VECTOR_STORE")
+                        .putConfiguration("driver", "chroma")
+                        .putConfiguration("collection", "docs")
+                        .build())
+                .metadata(
+                        "description",
+                        "Extended workflow: INPUT → VECTOR_SEARCH → MODEL → OUTPUT (git-branch style extension).")
+                .metadata("derivedFrom", "workflow-base.json")
+                .metadata("derivedFromVersion", "1.0.0")
+                .build();
+    }
+
+    static WorkflowDefinition conditionBranch() {
+        return WorkflowBuilder.create("Conditional Branch")
+                .id("condition-branch")
+                .version("1.0.0")
+                .capability(CapabilityDefinition.builder()
+                        .name("Conditional Branch")
+                        .description("Routes user intent to support or sales agent workflows.")
+                        .addInput("intent")
+                        .addOutput("response")
+                        .addTag("routing")
+                        .build())
+                .inputNode("input")
+                .addNode(nodeWithDefaultPorts("router", NodeType.CONDITION)
+                        .version("1.0.0")
+                        .addPort(PortDefinition.outputPort("true", "any"))
+                        .addPort(PortDefinition.outputPort("false", "any"))
+                        .putConfiguration("expression", "input.intent == 'support'")
+                        .addRouter(NodeRouterDefinition.builder()
+                                .id("to-support")
+                                .name("support")
+                                .targetPort("true")
+                                .targetNodeId("support-agent")
+                                .match(Map.of("intent", "support"))
+                                .build())
+                        .addRouter(NodeRouterDefinition.builder()
+                                .id("to-sales")
+                                .name("sales")
+                                .targetPort("false")
+                                .targetNodeId("sales-agent")
+                                .match(Map.of("intent", "sales"))
+                                .build())
+                        .build())
+                .addNode(nodeWithDefaultPorts("support-agent", NodeType.AGENT)
+                        .version("1.0.0")
+                        .executionKind(ExecutionKind.SUBWORKFLOW)
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("support-agent")
+                                .version("1.0.0")
+                                .build())
+                        .build())
+                .addNode(nodeWithDefaultPorts("sales-agent", NodeType.AGENT)
+                        .version("1.0.0")
+                        .executionKind(ExecutionKind.SUBWORKFLOW)
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("sales-agent")
+                                .version("1.0.0")
+                                .build())
+                        .build())
+                .outputNode("output")
+                .connect("input", "router")
+                .addEdge(EdgeDefinition.builder()
+                        .sourceNodeId("router")
+                        .sourcePortId("true")
+                        .targetNodeId("support-agent")
+                        .build())
+                .addEdge(EdgeDefinition.builder()
+                        .sourceNodeId("router")
+                        .sourcePortId("false")
+                        .targetNodeId("sales-agent")
+                        .build())
+                .connect("support-agent", "output")
+                .connect("sales-agent", "output")
+                .modelProvider(ModelProviderDefinition.builder()
+                        .id("openai-default")
+                        .provider("openai")
+                        .model("gpt-4o-mini")
+                        .build())
+                .metadata("description", "Demonstrates port-aware edges on a CONDITION node.")
+                .build();
+    }
+
+    static WorkflowDefinition humanApprovalTrade() {
+        return WorkflowBuilder.create("Trade Approval")
+                .id("human-approval-trade")
+                .version("1.0.0")
+                .capability(CapabilityDefinition.builder()
+                        .name("Trade Approval")
+                        .description("AI trade recommendation with human approval before execution.")
+                        .addInput("tradeRequest")
+                        .addOutput("executionResult")
+                        .addTag("finance")
+                        .addTag("hitl")
+                        .build())
+                .inputNode("input")
+                .addNode(nodeWithDefaultPorts("recommendation", NodeType.MODEL)
+                        .subtype("CHAT")
+                        .putConfiguration("providerRef", "openai-default")
+                        .build())
+                .humanNode(
+                        "trade-approval",
+                        HumanApprovalDefinition.builder()
+                                .title("Approve trade execution?")
+                                .description("Review the AI recommendation before executing the trade.")
+                                .approvers(List.of("trading-desk"))
+                                .timeoutSeconds(3600L)
+                                .requireCommentOnReject(true)
+                                .build())
+                .addNode(nodeWithDefaultPorts("execute-trade", NodeType.TOOL)
+                        .putConfiguration("toolRef", "trade-executor")
+                        .build())
+                .outputNode("output")
+                .connect("input", "recommendation")
+                .connect("recommendation", "trade-approval")
+                .connect("trade-approval", "execute-trade")
+                .connect("execute-trade", "output")
+                .modelProvider(ModelProviderDefinition.builder()
+                        .id("openai-default")
+                        .provider("openai")
+                        .model("gpt-4o-mini")
+                        .build())
+                .extension(ExtensionDefinition.builder()
+                        .id("trade-executor")
+                        .type("TOOL")
+                        .putConfiguration("implementation", "com.example.tools.TradeExecutor")
+                        .build())
+                .metadata(
+                        "description",
+                        "AI recommendation → human approval → trade execution (enterprise HITL).")
+                .build();
+    }
+
+    static WorkflowDefinition multiAgentOrchestration() {
+        return WorkflowBuilder.create("Multi-Agent Orchestration")
+                .id("multi-agent-orchestration")
+                .version("1.0.0")
+                .childWorkflow(ChildWorkflowDefinition.builder()
+                        .workflowId("research-agent")
+                        .workflowVersion("1.0.0")
+                        .build())
+                .childWorkflow(ChildWorkflowDefinition.builder()
+                        .workflowId("risk-agent")
+                        .workflowVersion("1.0.0")
+                        .build())
+                .childWorkflow(ChildWorkflowDefinition.builder()
+                        .workflowId("execution-agent")
+                        .workflowVersion("1.0.0")
+                        .build())
+                .capability(CapabilityDefinition.builder()
+                        .name("Multi-Agent Orchestration")
+                        .description("Composes planner and specialized agent workflows in sequence.")
+                        .addInput("goal")
+                        .addOutput("result")
+                        .addTag("multi-agent")
+                        .build())
+                .agent(AgentDefinition.builder()
+                        .id("research-agent")
+                        .capability(CapabilityDefinition.builder()
+                                .name("Research Agent")
+                                .description("Research topics and summarize findings")
+                                .addExample("Research sector trends")
+                                .build())
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("research-agent")
+                                .version("1.0.0")
+                                .build())
+                        .runtimeBinding(RuntimeBindingDefinition.builder()
+                                .implementationId("default-agent-runner")
+                                .build())
+                        .build())
+                .agent(AgentDefinition.builder()
+                        .id("risk-agent")
+                        .capability(CapabilityDefinition.builder()
+                                .name("Risk Agent")
+                                .description("Evaluate investment risk")
+                                .build())
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("risk-agent")
+                                .version("1.0.0")
+                                .build())
+                        .build())
+                .agent(AgentDefinition.builder()
+                        .id("execution-agent")
+                        .capability(CapabilityDefinition.builder()
+                                .name("Execution Agent")
+                                .description("Execute approved investment actions")
+                                .build())
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("execution-agent")
+                                .version("1.0.0")
+                                .build())
+                        .build())
+                .input("symbol", WorkflowInputDefinition.builder()
+                        .schema("String")
+                        .required(true)
+                        .build())
+                .stateField("marketData", StateFieldDefinition.builder().schema("MarketData").build())
+                .stateField("news", StateFieldDefinition.builder().schema("News[]").build())
+                .stateField("analysis", StateFieldDefinition.builder().schema("Analysis").build())
+                .inputNode("input")
+                .modelNode("planner", "PLANNER")
+                .addNode(nodeWithDefaultPorts("research-agent", NodeType.AGENT)
+                        .executionKind(ExecutionKind.SUBWORKFLOW)
+                        .addRead("state.symbol")
+                        .addRead("state.news")
+                        .addWrite("state.analysis")
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("research-agent")
+                                .version("1.0.0")
+                                .build())
+                        .build())
+                .addNode(nodeWithDefaultPorts("risk-agent", NodeType.AGENT)
+                        .executionKind(ExecutionKind.SUBWORKFLOW)
+                        .addRead("state.symbol")
+                        .addRead("state.marketData")
+                        .addRead("state.analysis")
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("risk-agent")
+                                .version("1.0.0")
+                                .build())
+                        .build())
+                .addNode(nodeWithDefaultPorts("execution-agent", NodeType.AGENT)
+                        .executionKind(ExecutionKind.SUBWORKFLOW)
+                        .addRead("state.analysis")
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("execution-agent")
+                                .version("1.0.0")
+                                .build())
+                        .build())
+                .outputNode("output")
+                .connect("input", "planner")
+                .connect("planner", "research-agent")
+                .connect("research-agent", "risk-agent")
+                .connect("risk-agent", "execution-agent")
+                .connect("execution-agent", "output")
+                .metadata("description", "Multi-agent = workflow composing agent workflows (agent handoff).")
+                .build();
+    }
+
+    static WorkflowDefinition technicalAnalysisAgent() {
+        return WorkflowBuilder.create("Technical Analysis Agent")
+                .id("technical-analysis")
+                .version("1.0.0")
+                .capability(CapabilityDefinition.builder()
+                        .name("Technical Analysis Agent")
+                        .description("Analyze indicators and trends")
+                        .addInput("symbol")
+                        .addOutput("analysis")
+                        .build())
+                .agent(AgentDefinition.builder()
+                        .id("technical-analysis")
+                        .capability(CapabilityDefinition.builder()
+                                .name("Technical Analysis Agent")
+                                .description("Analyze indicators and trends")
+                                .build())
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("technical-analysis-v1")
+                                .version("1.0.0")
+                                .build())
+                        .runtimeBinding(RuntimeBindingDefinition.builder()
+                                .implementationId("default-agent-runner")
+                                .build())
+                        .build())
+                .inputNode("input")
+                .outputNode("output")
+                .connect("input", "output")
+                .build();
+    }
+
+    static WorkflowDefinition parallelAgentFanOut() {
+        return WorkflowBuilder.create("Parallel Agents")
+                .id("parallel-agent-fan-out")
+                .version("1.0.0")
+                .capability(CapabilityDefinition.builder()
+                        .name("Parallel Agent Fan-Out")
+                        .description("Runs research, news, and risk agents in parallel then synthesizes.")
+                        .addInput("query")
+                        .addOutput("synthesis")
+                        .addTag("multi-agent")
+                        .addTag("parallel")
+                        .build())
+                .inputNode("input")
+                .addNode(nodeWithDefaultPorts("fan-out", NodeType.PARALLEL)
+                        .join(JoinDefinition.builder().strategy(JoinStrategy.ALL).build())
+                        .build())
+                .addNode(nodeWithDefaultPorts("research-agent", NodeType.AGENT)
+                        .executionKind(ExecutionKind.SUBWORKFLOW)
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("research-agent")
+                                .build())
+                        .build())
+                .addNode(nodeWithDefaultPorts("news-agent", NodeType.AGENT)
+                        .executionKind(ExecutionKind.SUBWORKFLOW)
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("news-agent")
+                                .build())
+                        .build())
+                .addNode(nodeWithDefaultPorts("risk-agent", NodeType.AGENT)
+                        .executionKind(ExecutionKind.SUBWORKFLOW)
+                        .workflow(WorkflowReferenceDefinition.builder()
+                                .workflowId("risk-agent")
+                                .build())
+                        .build())
+                .modelNode("synthesis", "CHAT")
+                .outputNode("output")
+                .connect("input", "fan-out")
+                .connect("fan-out", "research-agent")
+                .connect("fan-out", "news-agent")
+                .connect("fan-out", "risk-agent")
+                .connect("research-agent", "synthesis")
+                .connect("news-agent", "synthesis")
+                .connect("risk-agent", "synthesis")
+                .connect("synthesis", "output")
+                .metadata("description", "PARALLEL fan-out with join ALL, then synthesis MODEL.")
+                .build();
+    }
+
+    static WorkflowDefinition researchAgent() {
+        return WorkflowBuilder.create("Research Agent")
+                .id("research-agent")
+                .role("agent")
+                .shortDescription("Web and document research with citations")
+                .longDescription(
+                        "Performs web, news and document research, summarizes findings and produces citations.")
+                .isChildWorkflow(true)
+                .version("2.1.0")
+                .capability(CapabilityDefinition.builder()
+                        .id("research-agent")
+                        .name("Research Agent")
+                        .description(
+                                "Performs web and document research, summarizes findings and provides citations.")
+                        .addTag("research")
+                        .addTag("news")
+                        .addTag("documents")
+                        .addInput("query")
+                        .addOutput("summary")
+                        .addOutput("citations")
+                        .addExample("Research Nvidia earnings")
+                        .addExample("Compare AI startups")
+                        .cost(0.15)
+                        .latency(45_000.0)
+                        .confidence(0.85)
+                        .addToolRequirement("web-search")
+                        .addRequiredContext("user_profile")
+                        .build())
+                .inputNode("input")
+                .modelNode("research", "CHAT")
+                .outputNode("output")
+                .connect("input", "research")
+                .connect("research", "output")
+                .metadata("description", "Agent workflow with full planner-readable capability contract.")
+                .build();
+    }
+}

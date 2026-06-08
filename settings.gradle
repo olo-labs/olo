@@ -5,8 +5,8 @@ plugins {
 rootProject.name = 'olo-backend'
 include 'olo-temporal-sdk'
 
-def oloDefinitionDir = file('../olo-mono/olo-definition')
-def oloWorkflowInputDir = file('../olo-mono/olo-workflow-input')
+def oloDefinitionDir = file('olo-definition')
+def oloWorkflowInputDir = file('olo-workflow-input')
 
 if (oloDefinitionDir.directory) {
     includeBuild(oloDefinitionDir) {

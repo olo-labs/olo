@@ -1,15 +1,16 @@
 # Multi-stage build: compile with Gradle, run with JRE
-# Build context should be the olo-labs workspace root (parent of olo/ and oolo-mono/).
+# Build context: olo repo root (olo-definition, olo-workflow-input, olo-configuration vendored locally).
 FROM gradle:8-jdk21 AS builder
 WORKDIR /workspace
 
-COPY olo-mono/olo-definition olo-mono/olo-definition
-COPY olo-mono/olo-workflow-input olo-mono/olo-workflow-input
-COPY olo-mono/olo-configuration olo-mono/olo-configuration
-COPY olo olo
+COPY olo-definition olo-definition
+COPY olo-workflow-input olo-workflow-input
+COPY olo-temporal-sdk olo-temporal-sdk
+COPY gradle gradle
+COPY gradlew gradlew.bat settings.gradle build.gradle gradle.properties ./
+COPY src src
 
-WORKDIR /workspace/olo
-RUN gradle bootJar -x test --no-daemon
+RUN chmod +x gradlew && ./gradlew bootJar -x test --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
@@ -18,10 +19,10 @@ WORKDIR /app
 RUN adduser -D -h /app appuser
 USER appuser
 
-COPY --from=builder /workspace/olo/build/libs/olo-backend-*.jar app.jar
-COPY --from=builder /workspace/olo-mono/olo-configuration /olo-mono/olo-configuration
+COPY --from=builder /workspace/build/libs/olo-backend-*.jar app.jar
+COPY olo-configuration /app/olo-configuration
 
-ENV OLO_CONFIGURATION_DIR=/olo-mono/olo-configuration
+ENV OLO_CONFIGURATION_DIR=/app/olo-configuration
 
 EXPOSE 7080
 ENTRYPOINT ["java", "-jar", "app.jar"]

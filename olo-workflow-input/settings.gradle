@@ -1,0 +1,14 @@
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.9.0'
+}
+
+rootProject.name = 'olo-workflow-input'
+
+def oloDefinitionDir = file('../olo-definition')
+if (oloDefinitionDir.directory) {
+    includeBuild(oloDefinitionDir) {
+        dependencySubstitution {
+            substitute module('org.olo:olo-definition') using project(':olo-definition')
+        }
+    }
+}

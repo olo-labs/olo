@@ -14,9 +14,9 @@ echo   Backend:  http://localhost:7080
 echo   Swagger:  http://localhost:7080/swagger-ui.html
 echo.
 
-REM Regional configuration (olo-mono/olo-configuration/<region>/)
+REM Regional configuration (olo-configuration/<region>/)
 if not defined OLO_CONFIGURATION_DIR (
-  set "OLO_CONFIGURATION_DIR=%~dp0..\olo-mono\olo-configuration"
+  set "OLO_CONFIGURATION_DIR=%~dp0olo-configuration"
 )
 echo   Config:   %OLO_CONFIGURATION_DIR%
 echo.
@@ -25,7 +25,7 @@ if not exist "%OLO_CONFIGURATION_DIR%" (
   echo ERROR: Configuration folder not found:
   echo   %OLO_CONFIGURATION_DIR%
   echo.
-  echo Ensure olo-mono is checked out next to olo, or set OLO_CONFIGURATION_DIR.
+  echo Ensure olo-configuration exists in this repo, or set OLO_CONFIGURATION_DIR.
   pause
   exit /b 1
 )

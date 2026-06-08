@@ -76,3 +76,4 @@ coverage/
 .nyc_output/
 .report/
 test-results/
+*/samples/
