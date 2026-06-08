@@ -1,5 +1,6 @@
 # Build and push olo backend to Docker Hub (+ GHCR)
 # Repo secrets: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN
+# Pull: docker pull <DOCKERHUB_USERNAME>/olo:<library-version>  e.g. docker pull ololab/olo:0.0.1-SNAPSHOT
 name: Publish Docker image
 
 on:
@@ -32,6 +33,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Resolve library version
+        id: version
+        run: |
+          LIB_VERSION=$(sed -n "s/^version = ['\"]\\(.*\\)['\"]/\\1/p" build.gradle | head -1)
+          if [ -z "$LIB_VERSION" ]; then
+            echo "::error::Could not read version from build.gradle"
+            exit 1
+          fi
+          echo "id=$LIB_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Publishing with library version: $LIB_VERSION"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -54,8 +66,7 @@ jobs:
         with:
           images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-            type=sha,prefix=
+            type=raw,value=${{ steps.version.outputs.id }}
 
       - name: Docker metadata (GHCR)
         id: meta-ghcr
@@ -63,8 +74,7 @@ jobs:
         with:
           images: ${{ env.GHCR_REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-            type=sha,prefix=
+            type=raw,value=${{ steps.version.outputs.id }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
