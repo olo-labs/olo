@@ -8,13 +8,14 @@ group = 'org.olo'
 version = '0.0.1-SNAPSHOT'
 
 java {
-    sourceCompatibility = '21'
-    targetCompatibility = '21'
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 repositories {
     mavenCentral()
-    mavenLocal()  // for olo-worker-input when used by olo-worker (publishToMavenLocal)
+    mavenLocal()
 }
 
 dependencies {
@@ -23,10 +24,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
-    implementation project(':olo-sdk')
-    implementation project(':olo-worker-input')
-    implementation project(':olo-worker-configuration')
-    implementation project(':olo-worker-cache')
+    implementation project(':olo-temporal-sdk')
+    implementation 'org.olo:olo-workflow-input:0.1.0-SNAPSHOT'
+    implementation 'org.olo:olo-definition:0.1.0-SNAPSHOT'
 
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
 

@@ -37,10 +37,10 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
-        <!-- Olo SDK module (local project library) -->
+        <!-- Olo Temporal SDK module (local project library) -->
         <dependency>
             <groupId>org.olo</groupId>
-            <artifactId>olo-sdk</artifactId>
+            <artifactId>olo-temporal-sdk</artifactId>
             <version>0.0.1-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>

@@ -19,7 +19,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Builds {@link WorkflowInput} (olo-worker-input format) for the chat workflow.
+ * Builds {@link WorkflowInput} (olo-workflow-input format) for the chat workflow.
  * Use this before starting the workflow so the executor receives the standard input format.
  */
 public final class WorkflowInputSerializer {

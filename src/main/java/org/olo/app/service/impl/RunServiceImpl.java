@@ -12,12 +12,9 @@ import org.olo.app.domain.OloExecutionEvent;
 import org.olo.app.service.ChatRedisPersistence;
 import org.olo.app.service.RunService;
 import org.olo.app.store.*;
+import org.olo.app.workflow.WorkflowRunCompletion;
+import org.olo.app.workflow.WorkflowRunner;
 import org.olo.input.model.WorkflowInput;
-import org.olo.sdk.TemporalClient;
-import io.temporal.client.WorkflowClient;
-import io.temporal.client.WorkflowOptions;
-import io.temporal.client.WorkflowStub;
-import io.temporal.client.WorkflowFailedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,8 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-
 @Service
 public class RunServiceImpl implements RunService {
 
@@ -40,11 +35,8 @@ public class RunServiceImpl implements RunService {
     private final ExecutionEventStore eventStore;
     private final RunEventBroadcaster broadcaster;
     private final ChatRunStore runStore;
-    private final TemporalClient temporalClient;
-    private final WorkflowClient workflowClient;
+    private final WorkflowRunner workflowRunner;
     private final String callbackBaseUrl;
-    private final String taskQueue;
-    private final Executor workflowCompletionExecutor;
     private final ChatRedisPersistence redisPersistence;
     private final ChatMessageStore messageStore;
     /** RunIds for which we have already persisted the assistant message (Redis and/or in-memory) (one per run). */
@@ -57,54 +49,35 @@ public class RunServiceImpl implements RunService {
     public RunServiceImpl(ExecutionEventStore eventStore,
                            RunEventBroadcaster broadcaster,
                            ChatRunStore runStore,
-                           TemporalClient temporalClient,
+                           WorkflowRunner workflowRunner,
                            @Qualifier("oloCallbackBaseUrl") String callbackBaseUrl,
-                           @Qualifier("oloTaskQueue") String taskQueue,
-                           @Qualifier("workflowCompletionExecutor") Executor workflowCompletionExecutor,
                            @Autowired(required = false) ChatRedisPersistence redisPersistence,
                            @Autowired(required = false) ChatMessageStore messageStore) {
         this.eventStore = eventStore;
         this.broadcaster = broadcaster;
         this.runStore = runStore;
-        this.temporalClient = temporalClient;
-        this.workflowClient = temporalClient.getWorkflowClient();
+        this.workflowRunner = workflowRunner;
         this.callbackBaseUrl = callbackBaseUrl;
-        this.taskQueue = taskQueue;
-        this.workflowCompletionExecutor = workflowCompletionExecutor;
         this.redisPersistence = redisPersistence;
         this.messageStore = messageStore;
     }
 
     @Override
     public void startWorkflow(String runId, WorkflowInput workflowInput, String taskQueueFromFrontend) {
-        String effectiveTaskQueue = (taskQueueFromFrontend != null && !taskQueueFromFrontend.isBlank())
-                ? taskQueueFromFrontend.trim()
-                : taskQueue;
-        log.info("Starting workflow runId={} taskQueue={} callbackBaseUrl={}", runId, effectiveTaskQueue, callbackBaseUrl);
+        log.info("Starting workflow runId={} callbackBaseUrl={}", runId, callbackBaseUrl);
         log.info("Workflow input payload (JSON): {}", workflowInput != null ? workflowInput.toJson() : "null");
 
         try {
-            WorkflowOptions options = WorkflowOptions.newBuilder()
-                    .setWorkflowId("run-" + runId)
-                    .setTaskQueue(effectiveTaskQueue)
-                    .build();
-            WorkflowStub stub = temporalClient.newChatWorkflowStub(options);
-            stub.start(workflowInput);
-            log.info("Workflow start requested successfully for runId={}", runId);
-
-            // Two sources of events to UI (both forwarded via SSE):
-            // 1. Worker: POST /api/runs/{runId}/events — human approval, MODEL output, PLANNER/TOOL steps (appendEvent + broadcast).
-            // 2. Temporal: await getResult() then append SYSTEM COMPLETED/FAILED — final run status so UI can un-gray.
-            workflowCompletionExecutor.execute(() -> {
-                try {
-                    String workflowResult = stub.getResult(String.class);
+            workflowRunner.startChatRun(runId, workflowInput, taskQueueFromFrontend, new WorkflowRunCompletion() {
+                @Override
+                public void onCompleted(String workflowResult) {
                     String correlationId = getCorrelationIdFromRun(runId);
                     boolean hasResponse = workflowResult != null && !workflowResult.isBlank();
                     if (hasResponse) {
-                        log.info("[BE SSE] Temporal workflow completed runId={} responseLen={} preview={}", runId,
+                        log.info("[BE SSE] Workflow completed runId={} responseLen={} preview={}", runId,
                                 workflowResult.length(), workflowResult.substring(0, Math.min(80, workflowResult.length())) + (workflowResult.length() > 80 ? "..." : ""));
                     } else {
-                        log.info("[BE SSE] Temporal workflow completed runId={} hasResponse=false (workflow returned null/empty — ensure worker is OloChatWorkflowImpl and returns String)", runId);
+                        log.info("[BE SSE] Workflow completed runId={} hasResponse=false", runId);
                     }
                     Map<String, Object> output = hasResponse
                             ? Map.of("source", "temporal", "response", workflowResult)
@@ -112,20 +85,18 @@ public class RunServiceImpl implements RunService {
                     appendEvent(runId, "root", null, "SYSTEM", "COMPLETED",
                             null, output, null,
                             null, null, EventType.NODE_COMPLETED, correlationId);
-                } catch (WorkflowFailedException e) {
+                }
+
+                @Override
+                public void onFailed(String errorMessage) {
                     String correlationId = getCorrelationIdFromRun(runId);
-                    log.warn("[BE SSE] Temporal workflow failed runId={} — appending SYSTEM FAILED: {}", runId, e.getMessage());
+                    log.warn("[BE SSE] Workflow failed runId={}: {}", runId, errorMessage);
                     appendEvent(runId, "root", null, "SYSTEM", "FAILED",
-                            null, Map.of("error", e.getCause() != null ? e.getCause().getMessage() : e.getMessage()), null,
-                            null, null, EventType.NODE_FAILED, correlationId);
-                } catch (Exception e) {
-                    String correlationId = getCorrelationIdFromRun(runId);
-                    log.error("[BE SSE] Error awaiting workflow result runId={}: {}", runId, e.getMessage(), e);
-                    appendEvent(runId, "root", null, "SYSTEM", "FAILED",
-                            null, Map.of("error", e.getMessage()), null,
+                            null, Map.of("error", errorMessage != null ? errorMessage : "Workflow failed"), null,
                             null, null, EventType.NODE_FAILED, correlationId);
                 }
             });
+            log.info("Workflow start requested successfully for runId={}", runId);
         } catch (Exception e) {
             log.error("Failed to start workflow for runId={}: {}", runId, e.getMessage(), e);
             throw e;
@@ -134,8 +105,7 @@ public class RunServiceImpl implements RunService {
 
     @Override
     public void signalHumanInput(String runId, boolean approved, String message) {
-        WorkflowStub stub = workflowClient.newUntypedWorkflowStub("run-" + runId);
-        stub.signal("humanInput", approved, message != null ? message : "");
+        workflowRunner.signalHumanInput(runId, approved, message);
     }
 
     @Override

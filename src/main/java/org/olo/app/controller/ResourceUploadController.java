@@ -25,7 +25,6 @@ import java.util.Map;
 
 /**
  * Multipart resource upload for the Documents UI ({@code POST /api/resource/upload}).
- * Legacy {@code /api/rag/upload} delegates here with the same behaviour.
  */
 @RestController
 @Tag(name = "Resource upload", description = "Upload raw files for capability sources (shared folder / future object storage)")
@@ -64,20 +63,6 @@ public class ResourceUploadController {
         return ResponseEntity.ok(body);
     }
 
-    @Operation(summary = "Upload resource files (legacy path)", description = "Same as POST /api/resource/upload; form field ragId accepted")
-    @PostMapping(value = "/api/rag/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Map<String, Object>> uploadLegacy(
-            HttpServletRequest request,
-            @RequestParam(value = "capabilitySource", required = false) String capabilitySource,
-            @RequestParam(value = "ragId", required = false) String ragId,
-            @RequestParam(value = "taskQueue", required = false) String taskQueue,
-            @RequestParam(value = "pipelineId", required = false) String pipelineId,
-            @RequestParam("files") MultipartFile[] files) {
-
-        log.info("POST /api/rag/upload (legacy) delegating to resource upload handler");
-        return upload(request, capabilitySource, ragId, taskQueue, pipelineId, files);
-    }
-
     public record ReprocessRequest(String capabilitySource, String ragId, String fileName) {}
 
     @Operation(summary = "Reprocess uploaded file", description = "JSON: capabilitySource (or legacy ragId), fileName")
@@ -89,12 +74,6 @@ public class ResourceUploadController {
         }
         log.info("POST /api/resource/reprocess capabilitySource={} fileName={}", src, body.fileName());
         return ResponseEntity.ok(Map.of("success", true));
-    }
-
-    @PostMapping(value = "/api/rag/reprocess", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, Object>> reprocessLegacy(@RequestBody ReprocessRequest body) {
-        log.info("POST /api/rag/reprocess (legacy)");
-        return reprocess(body);
     }
 
     private static String resolveCapabilitySource(String capabilitySource, String ragId) {

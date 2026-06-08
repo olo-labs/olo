@@ -77,18 +77,6 @@ public class SessionsController {
         return ResponseEntity.ok(new CreateSessionResponse(sessionId));
     }
 
-    @Operation(summary = "Get session", description = "Get session by ID")
-    @GetMapping("/{sessionId}")
-    public ResponseEntity<Map<String, Object>> getSession(@PathVariable String sessionId) {
-        ChatSessionStore.SessionRecord session = sessionStore.get(sessionId);
-        if (session == null) return ResponseEntity.notFound().build();
-        return ResponseEntity.ok(Map.of(
-                "sessionId", session.sessionId,
-                "tenantId", session.tenantId,
-                "createdAt", session.createdAt
-        ));
-    }
-
     @Operation(summary = "Delete session", description = "Delete one chat session and its messages. Used by Conversation per-conversation delete button.")
     @DeleteMapping("/{sessionId}")
     public ResponseEntity<Void> deleteSession(@PathVariable String sessionId) {

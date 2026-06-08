@@ -10,7 +10,7 @@ import org.olo.app.store.ChatSessionStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -39,7 +39,7 @@ public class ChatRedisPersistence {
 
     public ChatRedisPersistence(
             @Autowired(required = false) StringRedisTemplate redisTemplate,
-            @Value("${olo.default-tenant-id:default}") String defaultTenantId) {
+            @Qualifier("oloDefaultTenantId") String defaultTenantId) {
         this.redisTemplate = redisTemplate;
         this.defaultTenantId = (defaultTenantId != null && !defaultTenantId.isBlank())
                 ? defaultTenantId.trim()

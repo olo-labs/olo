@@ -14,7 +14,7 @@ import org.olo.app.ws.RunEventWebSocketHandler;
 import org.olo.app.ws.RunEventWebSocketRegistry;
 import org.olo.app.ws.WebSocketAuthHandshakeHandler;
 import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
-import org.olo.sdk.TemporalClient;
+import org.olo.temporal.sdk.TemporalClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,18 +27,6 @@ public class DemoConfig {
 
     @Value("${olo.temporal.target:localhost:7233}")
     private String temporalTarget;
-
-    @Value("${olo.temporal.namespace:default}")
-    private String temporalNamespace;
-
-    @Value("${olo.chat.callback-base-url:http://localhost:7080}")
-    private String callbackBaseUrl;
-
-    @Value("${olo.temporal.task-queue:olo-chat}")
-    private String taskQueue;
-
-    @Value("${olo.temporal.workflow-type:OloChatWorkflowImpl}")
-    private String workflowTypeDefault;
 
     @Bean
     public ExecutionEventStore executionEventStore() {
@@ -73,8 +61,8 @@ public class DemoConfig {
     @Bean
     public WebSocketAuthHandshakeHandler webSocketAuthHandshakeHandler(JwtTenantExtractor jwtTenantExtractor,
                                                                        @Value("${olo.ws.jwt.required:true}") boolean wsJwtRequired,
-                                                                       @Value("${olo.default-tenant-id:default}") String defaultTenantId) {
-        return new WebSocketAuthHandshakeHandler(new DefaultHandshakeHandler(), jwtTenantExtractor, wsJwtRequired, defaultTenantId);
+                                                                       ResolvedOloRuntimeSettings runtimeSettings) {
+        return new WebSocketAuthHandshakeHandler(new DefaultHandshakeHandler(), jwtTenantExtractor, wsJwtRequired, runtimeSettings.tenantId());
     }
 
     @Bean
@@ -93,26 +81,27 @@ public class DemoConfig {
     }
 
     @Bean
-    public TemporalClient temporalClient() {
-        String workflowType = System.getenv("OLO_WORKFLOW_TYPE");
-        if (workflowType == null || workflowType.isEmpty()) {
-            workflowType = workflowTypeDefault;
-        }
+    public TemporalClient temporalClient(ResolvedOloRuntimeSettings runtimeSettings) {
         return TemporalClient.newBuilder()
                 .target(temporalTarget)
-                .namespace(temporalNamespace)
-                .workflowType(workflowType)
+                .namespace(runtimeSettings.temporalNamespace())
+                .workflowType(runtimeSettings.workflowType())
                 .build();
     }
 
     @Bean(name = "oloCallbackBaseUrl")
-    public String callbackBaseUrl() {
+    public String callbackBaseUrl(@Value("${olo.chat.callback-base-url:http://localhost:7080}") String callbackBaseUrl) {
         return callbackBaseUrl;
     }
 
     @Bean(name = "oloTaskQueue")
-    public String taskQueue() {
-        return taskQueue;
+    public String taskQueue(ResolvedOloRuntimeSettings runtimeSettings) {
+        return runtimeSettings.taskQueue();
+    }
+
+    @Bean(name = "oloDefaultTenantId")
+    public String defaultTenantId(ResolvedOloRuntimeSettings runtimeSettings) {
+        return runtimeSettings.tenantId();
     }
 
     /** Executor for awaiting Temporal workflow completion (non-blocking). */

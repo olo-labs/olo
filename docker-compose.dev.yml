@@ -50,8 +50,8 @@ services:
   olo-backend:
     image: olo:local
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: olo/Dockerfile
     env_file:
       - .env.example
     ports:
@@ -62,11 +62,9 @@ services:
       OLO_CACHE_PORT: "46379"
       OLO_CACHE_DATABASE: "0"
       OLO_TEMPORAL_TARGET: temporal:7233
-      OLO_TEMPORAL_NAMESPACE: default
-      OLO_TEMPORAL_TASK_QUEUE: olo-chat
+      OLO_CONFIGURATION_DIR: /olo-mono/olo-configuration
       OLO_CHAT_CALLBACK_BASE_URL: "http://localhost:7080"
       OLO_WS_JWT_REQUIRED: "false"
-      OLO_DEFAULT_TENANT_ID: "default"
     depends_on:
       redis:
         condition: service_healthy

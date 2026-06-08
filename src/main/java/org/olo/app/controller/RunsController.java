@@ -6,20 +6,11 @@
 package org.olo.app.controller;
 
 import org.olo.app.api.request.AppendEventRequest;
-import org.olo.app.api.request.CreateRunRequest;
 import org.olo.app.api.request.HumanInputRequest;
-import org.olo.app.api.response.CreateRunResponse;
-import org.olo.app.domain.EventType;
-import org.olo.app.domain.NodeStatus;
-import org.olo.app.domain.NodeType;
-import org.olo.app.domain.OloExecutionEvent;
 import org.olo.app.service.RunService;
 import org.olo.app.store.ChatRunStore;
-import org.olo.app.workflow.impl.WorkflowInputSerializer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.slf4j.Logger;
@@ -31,7 +22,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/runs")
@@ -42,46 +32,12 @@ public class RunsController {
 
     private final RunService runService;
     private final ChatRunStore runStore;
-    private final String taskQueue;
-    private final String callbackBaseUrl;
     private final ObjectMapper objectMapper;
 
-    public RunsController(RunService runService, ChatRunStore runStore,
-                          @Qualifier("oloTaskQueue") String taskQueue,
-                          @Qualifier("oloCallbackBaseUrl") String callbackBaseUrl,
-                          ObjectMapper objectMapper) {
+    public RunsController(RunService runService, ChatRunStore runStore, ObjectMapper objectMapper) {
         this.runService = runService;
         this.runStore = runStore;
-        this.taskQueue = taskQueue;
-        this.callbackBaseUrl = callbackBaseUrl;
         this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
-    }
-
-    @Operation(summary = "Create run", description = "Create a run and start the chat workflow. No session/message record; use POST /api/sessions/{id}/messages for session-bound flow.")
-    @PostMapping
-    public ResponseEntity<CreateRunResponse> createRun(@Valid @RequestBody CreateRunRequest request) {
-        String runId = UUID.randomUUID().toString();
-        String correlationId = UUID.randomUUID().toString();
-        runService.appendEvent(runId, "root", null, "SYSTEM", "STARTED",
-                Map.of(
-                        "type", request.getInput().getType(),
-                        "message", request.getInput().getMessage() != null ? request.getInput().getMessage() : ""
-                ),
-                null,
-                Map.of("tenantId", request.getTenantId()),
-                null, null, EventType.NODE_STARTED, correlationId);
-
-        runStore.put(new ChatRunStore.RunRecord(runId, "", "", request.getTenantId(), correlationId,
-                request.getWorkflowVersion(), request.getModelVersion(), request.getPlannerVersion()));
-        String userMessage = request.getInput().getMessage() != null ? request.getInput().getMessage() : "";
-        String pipeline = (request.getTaskQueue() != null && !request.getTaskQueue().isBlank())
-                ? request.getTaskQueue().trim()
-                : taskQueue;
-        org.olo.input.model.WorkflowInput workflowInput = WorkflowInputSerializer.build(
-                request.getTenantId(), "", "", userMessage, pipeline, runId, runId, callbackBaseUrl, correlationId);
-        runService.startWorkflow(runId, workflowInput, request.getTaskQueue());
-
-        return ResponseEntity.ok(new CreateRunResponse(runId));
     }
 
     @Operation(summary = "Stream run events (SSE)", description = "Server-sent events stream: catch-up then live execution events (PLANNER, TOOL, MODEL, HUMAN)")
