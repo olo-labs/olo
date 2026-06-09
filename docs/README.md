@@ -16,6 +16,8 @@ Default port: **7080**. Swagger UI: **http://localhost:7080/swagger-ui.html**
 | Doc | Description |
 |-----|-------------|
 | **[ARCHITECTURE.md](./ARCHITECTURE.md)** | Stack, modules, configuration model, API surface, chat/run data flow, Temporal integration, storage, Docker. |
+| **[DATA_MODEL.md](./DATA_MODEL.md)** | Tenant → Session → Message / Run → ExecutionEvent relationships, fields, persistence. |
+| **[FAILURE_RECOVERY.md](./FAILURE_RECOVERY.md)** | Temporal/Redis/worker failures, backend restart, duplicate callbacks, WebSocket reconnect. |
 | **[../olo-temporal-sdk/docs/ARCHITECTURE.md](../olo-temporal-sdk/docs/ARCHITECTURE.md)** | Temporal SDK: connection, workflow start/signal, backend boundary. |
 | **[../olo-temporal-sdk/docs/DESIGN.md](../olo-temporal-sdk/docs/DESIGN.md)** | Workflow start and human-input signal design. |
 

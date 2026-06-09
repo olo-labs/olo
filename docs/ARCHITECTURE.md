@@ -148,16 +148,38 @@ The backend no longer uses `profiles.json`, `pipelines.json`, kernel Redis confi
 
 `RunServiceImpl` calls `workflowRunner.startChatRun(...)` with a `WorkflowRunCompletion` callback. On completion it emits a `SYSTEM` execution event and broadcasts via SSE/WebSocket.
 
+### Data model
+
+Chat entities form a simple hierarchy. **Tenant** comes from configuration (region folder), not a dedicated store.
+
+```
+Tenant
+ └── Session
+      ├── Message
+      └── Run
+           └── ExecutionEvent
+```
+
+| Relationship | Cardinality | Link |
+|--------------|-------------|------|
+| Tenant → Session | 1 : N | `Session.tenantId` |
+| Session → Message | 1 : N | `Message.sessionId` |
+| Session → Run | 1 : N | `Run.sessionId` |
+| Run → Message (trigger) | 1 : 1 | `Run.messageId` (user send) |
+| Run → ExecutionEvent | 1 : N | `ExecutionEvent.runId` + `sequenceNumber` |
+
+Each user send creates one **Run** and one user **Message**; the run may later add assistant/human **Messages** and many **ExecutionEvents**. Full field lists, persistence, and ER diagram: **[DATA_MODEL.md](./DATA_MODEL.md)**.
+
 ### In-memory stores
 
-| Store | Purpose |
-|-------|---------|
-| `ChatSessionStore` | Session metadata |
-| `ChatMessageStore` | Conversation messages |
-| `ChatRunStore` | Run records (includes tenant for WS auth) |
-| `ExecutionEventStore` | Run execution events (PLANNER, MODEL, TOOL, HUMAN, SYSTEM) |
+| Store | Entity | Purpose |
+|-------|--------|---------|
+| `ChatSessionStore` | Session | Session metadata |
+| `ChatMessageStore` | Message | Conversation transcript |
+| `ChatRunStore` | Run | Run metadata (tenant, status, correlation) |
+| `ExecutionEventStore` | ExecutionEvent | Append-only run event log |
 
-Redis extends persistence when configured; stores remain the active runtime layer.
+Redis persists **sessions and messages** only (`ChatRedisPersistence`). Runs and execution events are in-memory and are lost on backend restart.
 
 ---
 
@@ -212,6 +234,18 @@ Workers (separate deployment) must:
 3. POST events to `{OLO_CHAT_CALLBACK_BASE_URL}/api/runs/{runId}/events`
 
 See **olo-temporal-sdk/docs** for client API and design rationale.
+
+---
+
+## Failure and recovery
+
+Happy-path flows above assume Temporal, Redis, workers, and the network are healthy. For production, see **[FAILURE_RECOVERY.md](./FAILURE_RECOVERY.md)**:
+
+- Temporal unavailable at start or signal
+- Redis down or backend restart (runs/events are in-memory only)
+- Worker crash / missing callbacks
+- Duplicate worker callbacks (**409** idempotency)
+- WebSocket reconnect and SSE catch-up behavior
 
 ---
 
@@ -281,6 +315,8 @@ Full defaults: `src/main/resources/application.properties` and `.env.example`.
 
 ## Related docs
 
+- [DATA_MODEL.md](./DATA_MODEL.md) — Entity relationships, fields, persistence
+- [FAILURE_RECOVERY.md](./FAILURE_RECOVERY.md) — Degraded behavior and production gaps
 - [README.md](./README.md) — Overview, quick start, Docker
 - [olo-temporal-sdk/docs/ARCHITECTURE.md](../olo-temporal-sdk/docs/ARCHITECTURE.md)
 - [olo-temporal-sdk/docs/DESIGN.md](../olo-temporal-sdk/docs/DESIGN.md)
