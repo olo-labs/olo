@@ -1,6 +1,7 @@
 # Build and push olo backend to Docker Hub (+ GHCR)
 # Repo secrets: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN
 # Pull: docker pull <DOCKERHUB_USERNAME>/olo:<library-version>  e.g. docker pull ololab/olo:0.0.1-SNAPSHOT
+# Also publishes :latest on every push (e.g. docker pull ololab/olo:latest)
 name: Publish Docker image
 
 on:
@@ -67,6 +68,7 @@ jobs:
           images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.version.outputs.id }}
+            type=raw,value=latest
 
       - name: Docker metadata (GHCR)
         id: meta-ghcr
@@ -75,6 +77,7 @@ jobs:
           images: ${{ env.GHCR_REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=${{ steps.version.outputs.id }}
+            type=raw,value=latest
 
       - name: Build and push
         uses: docker/build-push-action@v6
