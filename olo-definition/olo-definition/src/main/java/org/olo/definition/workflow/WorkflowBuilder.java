@@ -31,6 +31,10 @@ import java.util.Objects;
  */
 public final class WorkflowBuilder {
 
+    public static final String RETURN_VARIABLE_METADATA_KEY = "returnVariable";
+    public static final String RETURN_VARIABLE_NAME = "ReturnValue";
+    public static final String RETURN_VARIABLE_ROLE = "return";
+
     private final WorkflowDefinition.Builder delegate = WorkflowDefinition.builder();
     private final List<NodeDefinition> nodes = new ArrayList<>();
     private final List<EdgeDefinition> edges = new ArrayList<>();
@@ -344,6 +348,26 @@ public final class WorkflowBuilder {
 
     public WorkflowBuilder metadata(Map<String, Object> metadata) {
         this.metadata.putAll(metadata);
+        return this;
+    }
+
+    /**
+     * Declares the standard workflow return variable and {@code metadata.returnVariable = ReturnValue}.
+     */
+    public WorkflowBuilder withStandardReturnVariable() {
+        metadata.putIfAbsent(RETURN_VARIABLE_METADATA_KEY, RETURN_VARIABLE_NAME);
+        boolean hasReturnVariable = variables.stream()
+                .anyMatch(variable -> RETURN_VARIABLE_NAME.equals(variable.getName()));
+        if (!hasReturnVariable) {
+            variable(VariableDefinition.builder()
+                    .name(RETURN_VARIABLE_NAME)
+                    .type("string")
+                    .description("Workflow return message returned to the caller")
+                    .required(false)
+                    .defaultValue(null)
+                    .metadata(Map.of("role", RETURN_VARIABLE_ROLE))
+                    .build());
+        }
         return this;
     }
 

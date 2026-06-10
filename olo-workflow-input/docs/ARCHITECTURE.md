@@ -240,7 +240,7 @@ Dependency:
 api 'org.olo:olo-definition:0.1.0-SNAPSHOT'
 ```
 
-In the **olo** repo, `olo-workflow-input/settings.gradle` uses `includeBuild('../olo-definition')` so `org.olo:olo-definition` resolves to the vendored local copy — not Maven or **olo-mono**.
+When developed beside `olo-definition` in **olo-mono**, `settings.gradle` may use `includeBuild('../olo-definition')` with dependency substitution — still a **separate** project, not a subproject of `olo-definition`.
 
 ## 10. Request flow (end-to-end)
 
@@ -265,5 +265,5 @@ In the **olo** repo, `olo-workflow-input/settings.gradle` uses `includeBuild('..
 ## 12. References
 
 - Module README: [../README.md](../README.md)
-- Workflow definitions: local `olo/olo-definition` / `org.olo:olo-definition`
-- Definition architecture: `olo-definition/doc/ARCHITECTURE.md`
+- Workflow definitions: [olo-definition](https://github.com/olo-labs/olo-mono/tree/main/olo-definition) / `org.olo:olo-definition`
+- Monorepo architecture: `olo-definition/doc/ARCHITECTURE.md`

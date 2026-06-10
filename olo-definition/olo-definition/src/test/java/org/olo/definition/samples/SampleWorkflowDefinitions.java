@@ -62,8 +62,12 @@ final class SampleWorkflowDefinitions {
         return builder;
     }
 
+    private static WorkflowDefinition buildSample(WorkflowBuilder builder) {
+        return builder.withStandardReturnVariable().build();
+    }
+
     static WorkflowDefinition minimalEcho() {
-        return WorkflowBuilder.create("Minimal Echo")
+        return buildSample(WorkflowBuilder.create("Minimal Echo")
                 .id("minimal-echo")
                 .version("1.0.0")
                 .capability(passThroughCapability(
@@ -71,8 +75,7 @@ final class SampleWorkflowDefinitions {
                 .inputNode("input")
                 .outputNode("output")
                 .connect("input", "output")
-                .metadata("description", "Smallest valid OLO workflow: passes input through to output.")
-                .build();
+                .metadata("description", "Smallest valid OLO workflow: passes input through to output."));
     }
 
     static WorkflowDefinition stockAnalysis() {
@@ -83,7 +86,7 @@ final class SampleWorkflowDefinitions {
                 "question", Map.of("type", "string")));
         schema.put("required", List.of("symbol"));
 
-        return WorkflowBuilder.create("Stock Workflow")
+        return buildSample(WorkflowBuilder.create("Stock Workflow")
                 .id("stock-analysis")
                 .version("1.0.0")
                 .capability(CapabilityDefinition.builder()
@@ -181,12 +184,11 @@ final class SampleWorkflowDefinitions {
                         .id("audit")
                         .pattern("trading.*")
                         .onError(HookActionDefinition.builder().implementationId("audit-error").build())
-                        .build())
-                .build();
+                        .build()));
     }
 
     static WorkflowDefinition ragChat() {
-        return WorkflowBuilder.create("RAG Chat")
+        return buildSample(WorkflowBuilder.create("RAG Chat")
                 .id("rag-chat")
                 .version("1.0.0")
                 .capability(passThroughCapability(
@@ -239,12 +241,11 @@ final class SampleWorkflowDefinitions {
                         .build())
                 .metadata(
                         "description",
-                        "Retrieve-augmented generation over a vector store.")
-                .build();
+                        "Retrieve-augmented generation over a vector store."));
     }
 
     static WorkflowDefinition analysisBase() {
-        return WorkflowBuilder.create("Analysis")
+        return buildSample(WorkflowBuilder.create("Analysis")
                 .id("analysis")
                 .version("1.0.0")
                 .capability(passThroughCapability("Analysis", "Single-model analysis workflow."))
@@ -264,12 +265,11 @@ final class SampleWorkflowDefinitions {
                         .build())
                 .metadata(
                         "description",
-                        "Base workflow before RAG extension (see workflow-extended.json).")
-                .build();
+                        "Base workflow before RAG extension (see workflow-extended.json)."));
     }
 
     static WorkflowDefinition analysisExtended() {
-        return WorkflowBuilder.create("Analysis with RAG")
+        return buildSample(WorkflowBuilder.create("Analysis with RAG")
                 .id("analysis")
                 .version("1.1.0")
                 .capability(passThroughCapability(
@@ -303,12 +303,11 @@ final class SampleWorkflowDefinitions {
                         "description",
                         "Extended workflow: INPUT → VECTOR_SEARCH → MODEL → OUTPUT (git-branch style extension).")
                 .metadata("derivedFrom", "workflow-base.json")
-                .metadata("derivedFromVersion", "1.0.0")
-                .build();
+                .metadata("derivedFromVersion", "1.0.0"));
     }
 
     static WorkflowDefinition conditionBranch() {
-        return WorkflowBuilder.create("Conditional Branch")
+        return buildSample(WorkflowBuilder.create("Conditional Branch")
                 .id("condition-branch")
                 .version("1.0.0")
                 .capability(CapabilityDefinition.builder()
@@ -374,12 +373,11 @@ final class SampleWorkflowDefinitions {
                         .provider("openai")
                         .model("gpt-4o-mini")
                         .build())
-                .metadata("description", "Demonstrates port-aware edges on a CONDITION node.")
-                .build();
+                .metadata("description", "Demonstrates port-aware edges on a CONDITION node."));
     }
 
     static WorkflowDefinition humanApprovalTrade() {
-        return WorkflowBuilder.create("Trade Approval")
+        return buildSample(WorkflowBuilder.create("Trade Approval")
                 .id("human-approval-trade")
                 .version("1.0.0")
                 .capability(CapabilityDefinition.builder()
@@ -424,12 +422,11 @@ final class SampleWorkflowDefinitions {
                         .build())
                 .metadata(
                         "description",
-                        "AI recommendation → human approval → trade execution (enterprise HITL).")
-                .build();
+                        "AI recommendation → human approval → trade execution (enterprise HITL)."));
     }
 
     static WorkflowDefinition multiAgentOrchestration() {
-        return WorkflowBuilder.create("Multi-Agent Orchestration")
+        return buildSample(WorkflowBuilder.create("Multi-Agent Orchestration")
                 .id("multi-agent-orchestration")
                 .version("1.0.0")
                 .childWorkflow(ChildWorkflowDefinition.builder()
@@ -531,12 +528,11 @@ final class SampleWorkflowDefinitions {
                 .connect("research-agent", "risk-agent")
                 .connect("risk-agent", "execution-agent")
                 .connect("execution-agent", "output")
-                .metadata("description", "Multi-agent = workflow composing agent workflows (agent handoff).")
-                .build();
+                .metadata("description", "Multi-agent = workflow composing agent workflows (agent handoff)."));
     }
 
     static WorkflowDefinition technicalAnalysisAgent() {
-        return WorkflowBuilder.create("Technical Analysis Agent")
+        return buildSample(WorkflowBuilder.create("Technical Analysis Agent")
                 .id("technical-analysis")
                 .version("1.0.0")
                 .capability(CapabilityDefinition.builder()
@@ -561,12 +557,11 @@ final class SampleWorkflowDefinitions {
                         .build())
                 .inputNode("input")
                 .outputNode("output")
-                .connect("input", "output")
-                .build();
+                .connect("input", "output"));
     }
 
     static WorkflowDefinition parallelAgentFanOut() {
-        return WorkflowBuilder.create("Parallel Agents")
+        return buildSample(WorkflowBuilder.create("Parallel Agents")
                 .id("parallel-agent-fan-out")
                 .version("1.0.0")
                 .capability(CapabilityDefinition.builder()
@@ -609,12 +604,11 @@ final class SampleWorkflowDefinitions {
                 .connect("news-agent", "synthesis")
                 .connect("risk-agent", "synthesis")
                 .connect("synthesis", "output")
-                .metadata("description", "PARALLEL fan-out with join ALL, then synthesis MODEL.")
-                .build();
+                .metadata("description", "PARALLEL fan-out with join ALL, then synthesis MODEL."));
     }
 
     static WorkflowDefinition researchAgent() {
-        return WorkflowBuilder.create("Research Agent")
+        return buildSample(WorkflowBuilder.create("Research Agent")
                 .id("research-agent")
                 .role("agent")
                 .shortDescription("Web and document research with citations")
@@ -646,7 +640,6 @@ final class SampleWorkflowDefinitions {
                 .outputNode("output")
                 .connect("input", "research")
                 .connect("research", "output")
-                .metadata("description", "Agent workflow with full planner-readable capability contract.")
-                .build();
+                .metadata("description", "Agent workflow with full planner-readable capability contract."));
     }
 }

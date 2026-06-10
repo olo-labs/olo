@@ -3,7 +3,7 @@
   "name": "Minimal Echo",
   "role": "Echo",
   "shortDescription": "Minimal passthrough workflow",
-  "emoji": "💬",
+  "emoji": "ðŸ’¬",
   "queue": "minimal-echo",
   "workflowType": "olo",
   "runAgain": true,
@@ -68,7 +68,18 @@
       "targetNodeId": "output"
     }
   ],
-  "variables": [],
+  "variables": [
+    {
+      "name": "ReturnValue",
+      "type": "string",
+      "description": "Workflow return message returned to the caller",
+      "required": false,
+      "defaultValue": null,
+      "metadata": {
+        "role": "return"
+      }
+    }
+  ],
   "tools": [],
   "agents": [],
   "hooks": [],
@@ -76,6 +87,7 @@
   "modelRouting": [],
   "extensions": [],
   "metadata": {
-    "description": "Smallest valid OLO workflow: passes input through to output."
+    "description": "Smallest valid OLO workflow: passes input through to output.",
+    "returnVariable": "ReturnValue"
   }
 }

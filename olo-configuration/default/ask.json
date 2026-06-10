@@ -25,7 +25,8 @@
   },
   "metadata": {
     "description": "Direct questions and clear answers",
-    "role": "ask"
+    "role": "ask",
+    "returnVariable": "ReturnValue"
   },
   "childWorkflows": [],
   "version": "1.0.0",
@@ -74,7 +75,18 @@
       "targetNodeId": "output"
     }
   ],
-  "variables": [],
+  "variables": [
+    {
+      "name": "ReturnValue",
+      "type": "string",
+      "description": "Workflow return message returned to the caller",
+      "required": false,
+      "defaultValue": null,
+      "metadata": {
+        "role": "return"
+      }
+    }
+  ],
   "tools": [],
   "agents": [],
   "hooks": [],
