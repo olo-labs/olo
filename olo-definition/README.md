@@ -6,7 +6,7 @@ Monorepo for **OLO** (AI orchestration): declarative workflow definitions separa
 
 See [doc/ARCHITECTURE.md](doc/ARCHITECTURE.md) for module boundaries, graph model, serialization, and planned runtime design.
 
-Example workflows: [samples/](samples/).
+Example workflows: [samples/](samples/). Preset chat/task-queue definitions: [olo-configuration/](olo-configuration/).
 
 ## Modules
 

@@ -20,20 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class SampleWorkflowsTest {
 
-    private static Path resolveSamplesRoot() {
-        String property = System.getProperty("olo.samples.dir");
-        if (property != null) {
-            return Path.of(property);
-        }
-        for (String candidate : new String[] {"samples", "../samples"}) {
-            Path path = Path.of(candidate).normalize().toAbsolutePath();
-            if (Files.isDirectory(path)) {
-                return path;
-            }
-        }
-        return Path.of("samples").toAbsolutePath();
-    }
-
     private final JsonWorkflowSerializer json = new JsonWorkflowSerializer();
     private final YamlWorkflowSerializer yaml = new YamlWorkflowSerializer();
 
@@ -64,7 +50,7 @@ class SampleWorkflowsTest {
     }
 
     private static Stream<Arguments> sampleFiles(String extension) {
-        Path samplesRoot = resolveSamplesRoot();
+        Path samplesRoot = SamplePaths.resolveSamplesRoot();
         return Stream.of(
                         "minimal-echo/workflow." + extension,
                         "stock-analysis/workflow." + extension,

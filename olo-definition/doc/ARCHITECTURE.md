@@ -88,7 +88,7 @@ Everything is rooted in **`WorkflowDefinition`**: the single aggregate that can 
 
 ```
 WorkflowDefinition
-├── id, name, role, shortDescription, longDescription, isExternalWorkflow, isChildWorkflow, childWorkflows[], version
+├── id, label, role, shortDescription, longDescription, isExternalWorkflow, isChildWorkflow, childWorkflows[], version
 ├── capability       → CapabilityDefinition (planner-readable contract)
 ├── inputs           → Map<String, WorkflowInputDefinition>  (invocation inputs)
 ├── state            → Map<String, StateFieldDefinition>       (shared workflow state schema)
@@ -107,6 +107,31 @@ WorkflowDefinition
 
 Workflows are **immutable value objects** after `build()`. Lists and maps exposed from getters are unmodifiable copies.
 
+#### Workflow `label` vs capability `name`
+
+Both fields may hold the same text on presets (e.g. `"Planner"`), but they are **not interchangeable**:
+
+| Field | JSON | Layer | Purpose |
+|-------|------|-------|---------|
+| `WorkflowDefinition.label` | `label` | Studio / chat UI | Display name for the workflow preset (`id` stays stable) |
+| `CapabilityDefinition.name` | `capability.name` | Planner contract | Capability descriptor title — what planners and orchestrators reason about |
+
+Do not rename `capability.name` to `label`; capability blocks are shared by workflows, tools, agents, and nodes and predate the workflow `label` convention.
+
+#### Workflow preset parameters (single source)
+
+Studio catalog and on-disk presets share one parameter schema per preset id:
+
+```
+@OloWorkflowPreset (e.g. AgentWorkflowPreset in olo-core)
+        ↓ compile
+workflow-presets.json  →  Studio / GET /api/v1/catalog
+        ↓ WorkflowPresetParameters.materialize("agent")
+agent.json parameters  →  runtime workflow registry
+```
+
+Edit {@code AgentWorkflowPreset} only. {@code AgentWorkflowParameters.defaults()} loads {@code META-INF/olo/catalog/workflow-presets.json} from {@code olo-core-nodes} (or an extension JAR) — generation tests require that artifact on the classpath.
+
 ### 3.1 Capability contract (planner-facing)
 
 Every **workflow**, **tool**, and **agent** exposes the same `CapabilityDefinition` block. Planners never inspect `nodes`, `edges`, or `configuration` — they consume `PlannerCatalog` instead (§3.3).
@@ -117,7 +142,7 @@ Every workflow **must** declare `capability` so planners and orchestrators under
 
 ```yaml
 id: research-agent
-name: Research Agent
+label: Research Agent
 role: agent
 shortDescription: Web and document research with citations
 longDescription: >
@@ -149,7 +174,7 @@ nodes: [...]
 
 | Field | Purpose |
 |-------|---------|
-| `name`, `description` | Human- and LLM-readable summary (required) |
+| `name`, `description` | Capability descriptor title and summary for planners (required) — not workflow `label` |
 | `required_inputs`, `required_outputs` | **Semantic** names the planner can bind — what the capability conceptually consumes/produces (required on workflows, non-empty) |
 | `tags` | Discovery / routing facets |
 | `examples` | Few-shot hints for tool selection |

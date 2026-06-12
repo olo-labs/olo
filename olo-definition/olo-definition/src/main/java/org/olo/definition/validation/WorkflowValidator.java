@@ -6,6 +6,7 @@ import org.olo.definition.error.OnFailureDefinition;
 import org.olo.definition.error.RetryPolicy;
 import org.olo.definition.human.HumanApprovalDefinition;
 import org.olo.definition.execution.ExecutionKind;
+import org.olo.definition.execution.ExecutionModel;
 import org.olo.definition.node.NodeType;
 import org.olo.definition.parallel.JoinDefinition;
 import org.olo.definition.parallel.JoinStrategy;
@@ -34,6 +35,9 @@ import org.olo.definition.capability.CapabilityDefinition;
 import org.olo.definition.capability.CapabilityValidator;
 import org.olo.definition.runtime.RuntimeBindingValidator;
 import org.olo.definition.tool.ToolDefinition;
+import org.olo.definition.planner.AgentReferenceDefinition;
+import org.olo.definition.planner.WorkflowPlannerMetadata;
+import org.olo.definition.runtime.WorkflowRuntimeDefinition;
 import org.olo.definition.workflow.WorkflowDefinition;
 
 import java.util.ArrayList;
@@ -61,6 +65,9 @@ public final class WorkflowValidator {
         }
         validateCapability(workflow, errors);
         validateChildWorkflows(workflow, errors);
+        validateAvailableAgents(workflow, errors);
+        validateOrchestration(workflow, errors);
+        validateWorkflowRuntime(workflow, errors);
         RuntimeBindingValidator.validate("workflow " + workflow.getId(), workflow.getRuntimeBinding(), errors);
 
         Set<String> hookImplementationIds = HookCatalog.implementationIds(workflow);
@@ -105,6 +112,7 @@ public final class WorkflowValidator {
                 validateOnFailure(node, nodeIds, errors);
                 validateHumanApproval(node, errors);
                 validateExecutionMapping(node, errors);
+                validateAgentExecution(node, errors);
                 validateWorkflowReference(node, errors);
                 validateParallelJoin(node, errors);
                 validateDataPathAccess(node, stateFieldNames, inputFieldNames, parameterFieldNames, errors);
@@ -344,6 +352,7 @@ public final class WorkflowValidator {
         String nodeId = node.getId();
         String type = node.getType();
         ExecutionKind kind = node.getExecutionKind();
+        ExecutionModel model = node.getExecutionModel();
         if (kind == ExecutionKind.HUMAN_WAIT && !NodeType.HUMAN.value().equals(type)) {
             errors.add("executionKind HUMAN_WAIT requires type HUMAN on node: " + nodeId);
         }
@@ -352,6 +361,28 @@ public final class WorkflowValidator {
                 && kind != ExecutionKind.HUMAN_WAIT
                 && kind != ExecutionKind.EVENT) {
             errors.add("executionKind on HUMAN node " + nodeId + " should be HUMAN_WAIT or EVENT");
+        }
+        if (model != null && kind != null && model.expectedExecutionKind() != kind) {
+            errors.add(
+                    "executionModel "
+                            + model
+                            + " requires executionKind "
+                            + model.expectedExecutionKind()
+                            + " on node: "
+                            + nodeId);
+        }
+    }
+
+    private static void validateAgentExecution(NodeDefinition node, List<String> errors) {
+        if (!NodeType.AGENT.value().equals(node.getType())) {
+            return;
+        }
+        String nodeId = node.getId();
+        if (node.getExecutionModel() != ExecutionModel.CHILD_WORKFLOW) {
+            errors.add("AGENT node " + nodeId + " requires execution.executionModel CHILD_WORKFLOW");
+        }
+        if (node.getExecutionKind() != ExecutionKind.SUBWORKFLOW) {
+            errors.add("AGENT node " + nodeId + " requires execution.executionKind SUBWORKFLOW");
         }
     }
 
@@ -635,11 +666,42 @@ public final class WorkflowValidator {
                 errors.add("child workflow entry must not be null");
                 continue;
             }
-            if (isBlank(child.getQueue())) {
-                errors.add("child workflow queue is required");
-            } else if (!childIds.add(child.getQueue())) {
-                errors.add("duplicate child workflow queue: " + child.getQueue());
+            if (isBlank(child.getWorkflowId())) {
+                errors.add("child workflow workflowId is required");
+            } else if (!childIds.add(child.getWorkflowId())) {
+                errors.add("duplicate child workflow workflowId: " + child.getWorkflowId());
             }
+        }
+    }
+
+    private static void validateAvailableAgents(WorkflowDefinition workflow, List<String> errors) {
+        Set<String> agentIds = new HashSet<>();
+        for (AgentReferenceDefinition agent : workflow.getAvailableAgents()) {
+            if (agent == null) {
+                errors.add("availableAgents entry must not be null");
+                continue;
+            }
+            String agentId = agent.getId();
+            if (isBlank(agentId)) {
+                errors.add("availableAgents id is required");
+            } else if (!agentIds.add(agentId)) {
+                errors.add("duplicate availableAgents id: " + agentId);
+            }
+        }
+        if (!workflow.getAvailableAgents().isEmpty()
+                && workflow.getMetadata().get(WorkflowPlannerMetadata.AGENT_SELECTION_STRATEGY) == null) {
+            errors.add("workflow " + workflow.getId()
+                    + ": metadata.agentSelectionStrategy is required when availableAgents is set");
+        }
+        WorkflowPlannerMetadata.validateAgentSelectionStrategy(
+                workflow.getId(), workflow.getMetadata(), errors);
+    }
+
+    private static void validateOrchestration(WorkflowDefinition workflow, List<String> errors) {
+        String context = "workflow " + workflow.getId();
+        if (!workflow.getAvailableAgents().isEmpty()
+                && (workflow.getRuntime() == null || workflow.getRuntime().getDelegation() == null)) {
+            errors.add(context + ": runtime.delegation is required when availableAgents is set");
         }
     }
 
@@ -649,6 +711,25 @@ public final class WorkflowValidator {
                 workflow.getCapability(),
                 CapabilityValidator.Context.WORKFLOW,
                 errors);
+    }
+
+    private static void validateWorkflowRuntime(WorkflowDefinition workflow, List<String> errors) {
+        validateWorkflowRuntimeContract("workflow " + workflow.getId(), workflow.getRuntime(), errors);
+    }
+
+    private static void validateWorkflowRuntimeContract(
+            String context, WorkflowRuntimeDefinition runtime, List<String> errors) {
+        if (runtime == null) {
+            errors.add(context + ": runtime is required");
+            return;
+        }
+        if (isBlank(runtime.getContractVersion())) {
+            errors.add(context + ": runtime.contractVersion is required");
+        }
+        if (runtime.getExecutionModel() == null) {
+            errors.add(context + ": runtime.executionModel is required");
+        }
+        WorkflowRuntimeDefinition.validate(runtime, context, errors);
     }
 
     private static void validateTool(ToolDefinition tool, List<String> errors) {
@@ -670,6 +751,10 @@ public final class WorkflowValidator {
             errors.add("agent " + agent.getId() + ": workflow.workflowId is required");
         }
         RuntimeBindingValidator.validate("agent " + agent.getId(), agent.getRuntimeBinding(), errors);
+        if (agent.getRuntime() == null || agent.getRuntime().getExecutionModel() != ExecutionModel.CHILD_WORKFLOW) {
+            errors.add("agent " + agent.getId() + ": runtime.executionModel CHILD_WORKFLOW is required");
+        }
+        validateWorkflowRuntimeContract("agent " + agent.getId(), agent.getRuntime(), errors);
     }
 
     private static void validateNodeRuntimeBinding(NodeDefinition node, List<String> errors) {

@@ -22,6 +22,7 @@ class ExecutionMappingTest {
                 .capability(ValidationTestFixtures.minimalCapability())
                 .addNode(ValidationTestFixtures.node("technical-agent", NodeType.AGENT)
                         .executionKind(ExecutionKind.SUBWORKFLOW)
+                        .executionModel(ExecutionModel.CHILD_WORKFLOW)
                         .workflow(WorkflowReferenceDefinition.builder()
                                 .workflowId("technical-analysis")
                                 .version("v1")
@@ -34,6 +35,7 @@ class ExecutionMappingTest {
         WorkflowDefinition restored = json.deserialize(json.serialize(workflow));
         NodeDefinition agent = restored.getNodes().get(0);
         assertThat(agent.getExecutionKind()).isEqualTo(ExecutionKind.SUBWORKFLOW);
+        assertThat(agent.getExecutionModel()).isEqualTo(ExecutionModel.CHILD_WORKFLOW);
         assertThat(agent.getWorkflow().getWorkflowId()).isEqualTo("technical-analysis");
         assertThat(agent.getWorkflow().getVersion()).isEqualTo("v1");
         assertThat(agent.getExecution()).isNotNull();

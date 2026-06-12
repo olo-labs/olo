@@ -85,7 +85,7 @@ public class UiContextController {
             summary = "UI context",
             description = "tenantId from JWT when Authorization is sent; otherwise tenant from olo.configuration.dir (default region folder). "
                     + "tenant = olo.ui.tenant-display-name; user = olo.ui.user-display-name; olo.version. "
-                    + "chatProfiles = workflow definitions under olo.configuration.dir/<region>/ (*.json): "
+                    + "chatProfiles = enabled workflow definitions under olo.configuration.dir/<region>/ (*.json): "
                     + "role=displayName, shortDescription=displaySummary, emoji, queue, id=pipeline."
     )
     @GetMapping("/context")
@@ -121,6 +121,9 @@ public class UiContextController {
             }
             List<ChatProfileDto> out = new ArrayList<>();
             for (WorkflowDefinition workflow : snap.getWorkflows()) {
+                if (Boolean.FALSE.equals(workflow.isEnabled())) {
+                    continue;
+                }
                 out.add(toChatProfile(workflow));
             }
             return out;

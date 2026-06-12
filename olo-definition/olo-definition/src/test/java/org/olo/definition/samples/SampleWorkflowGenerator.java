@@ -13,7 +13,7 @@ import java.util.function.Supplier;
 
 /**
  * Writes canonical workflow samples (JSON and YAML) under {@code samples/}.
- * Invoked by the {@code generateSamples} Gradle task and sample E2E tests.
+ * Invoked by {@link SampleWorkflowRegenerationTest} ({@code generateSamples} Gradle task) and sample E2E tests.
  */
 public final class SampleWorkflowGenerator {
 

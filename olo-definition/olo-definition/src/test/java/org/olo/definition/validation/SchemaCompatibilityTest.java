@@ -21,4 +21,10 @@ class SchemaCompatibilityTest {
     void rejectsMismatchedSchemas() {
         assertThat(SchemaCompatibility.compatible("String", "Stock[]")).isFalse();
     }
+
+    @Test
+    void rejectsStringToNumberWithoutCoercion() {
+        assertThat(SchemaCompatibility.compatible("string", "number")).isFalse();
+        assertThat(SchemaCompatibility.compatible("string", "string")).isTrue();
+    }
 }

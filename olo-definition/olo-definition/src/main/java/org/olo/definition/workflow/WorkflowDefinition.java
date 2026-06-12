@@ -1,5 +1,7 @@
 package org.olo.definition.workflow;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -8,7 +10,14 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import org.olo.definition.agent.AgentDefinition;
 import org.olo.definition.capability.CapabilityDefinition;
+import org.olo.definition.designer.DesignerDefinition;
+import org.olo.definition.execution.ExecutionModel;
+import org.olo.definition.planner.AgentReferenceDefinition;
+import org.olo.definition.planner.AgentReferenceDefinitionDeserializer;
+import org.olo.definition.orchestration.WorkflowOrchestrationDefinition;
+import org.olo.definition.runtime.RuntimeDelegationDefinition;
 import org.olo.definition.runtime.RuntimeBindingDefinition;
+import org.olo.definition.runtime.WorkflowRuntimeDefinition;
 import org.olo.definition.edge.EdgeDefinition;
 import org.olo.definition.extension.ExtensionDefinition;
 import org.olo.definition.hook.HookDefinition;
@@ -18,6 +27,7 @@ import org.olo.definition.model.ModelRoutingDefinition;
 import org.olo.definition.input.WorkflowInputDefinition;
 import org.olo.definition.node.NodeDefinition;
 import org.olo.definition.parameter.WorkflowParameterDefinition;
+import org.olo.definition.parameter.WorkflowParameterDefinitionDeserializer;
 import org.olo.definition.state.StateFieldDefinition;
 import org.olo.definition.variable.VariableDefinition;
 
@@ -36,10 +46,11 @@ import java.util.Objects;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonPropertyOrder({
     "id",
-    "name",
+    "label",
     "role",
     "shortDescription",
     "emoji",
+    "designer",
     "queue",
     "workflowType",
     "runAgain",
@@ -47,8 +58,10 @@ import java.util.Objects;
     "isExternalWorkflow",
     "isChildWorkflow",
     "childWorkflows",
+    "availableAgents",
     "version",
     "capability",
+    "runtime",
     "runtimeBinding",
     "inputs",
     "state",
@@ -67,10 +80,11 @@ import java.util.Objects;
 public final class WorkflowDefinition {
 
     private final String id;
-    private final String name;
+    private final String label;
     private final String role;
     private final String shortDescription;
     private final String emoji;
+    private final DesignerDefinition designer;
     private final String queue;
     private final String workflowType;
     private final Boolean runAgain;
@@ -78,6 +92,7 @@ public final class WorkflowDefinition {
     private final Boolean isExternalWorkflow;
     private final Boolean isChildWorkflow;
     private final List<ChildWorkflowDefinition> childWorkflows;
+    private final List<AgentReferenceDefinition> availableAgents;
     private final String version;
     private final List<NodeDefinition> nodes;
     private final List<EdgeDefinition> edges;
@@ -90,6 +105,7 @@ public final class WorkflowDefinition {
     private final List<ExtensionDefinition> extensions;
     private final Map<String, Object> metadata;
     private final CapabilityDefinition capability;
+    private final WorkflowRuntimeDefinition runtime;
     private final RuntimeBindingDefinition runtimeBinding;
     private final List<ToolDefinition> tools;
     private final List<AgentDefinition> agents;
@@ -97,10 +113,11 @@ public final class WorkflowDefinition {
 
     private WorkflowDefinition(Builder builder) {
         this.id = builder.id;
-        this.name = builder.name;
+        this.label = builder.label;
         this.role = builder.role;
         this.shortDescription = builder.shortDescription;
         this.emoji = builder.emoji;
+        this.designer = builder.designer;
         this.queue = builder.queue;
         this.workflowType = builder.workflowType;
         this.runAgain = builder.runAgain;
@@ -108,8 +125,10 @@ public final class WorkflowDefinition {
         this.isExternalWorkflow = builder.isExternalWorkflow;
         this.isChildWorkflow = builder.isChildWorkflow;
         this.childWorkflows = builder.childWorkflows == null ? List.of() : List.copyOf(builder.childWorkflows);
+        this.availableAgents = builder.availableAgents == null ? List.of() : List.copyOf(builder.availableAgents);
         this.version = builder.version;
         this.capability = builder.capability;
+        this.runtime = builder.runtime;
         this.runtimeBinding = builder.runtimeBinding;
         this.tools = builder.tools == null ? List.of() : List.copyOf(builder.tools);
         this.agents = builder.agents == null ? List.of() : List.copyOf(builder.agents);
@@ -136,11 +155,17 @@ public final class WorkflowDefinition {
         return id;
     }
 
-    public String getName() {
-        return name;
+    /**
+     * Studio / chat UI display name for this workflow preset (distinct from stable {@link #getId()}).
+     * <p>
+     * Not the same as {@link CapabilityDefinition#getName()} on {@link #getCapability()} — {@code label}
+     * is editor presentation; {@code capability.name} is the planner-readable capability descriptor.
+     */
+    public String getLabel() {
+        return label;
     }
 
-    /** Chat UI display name for this workflow preset ({@code display_name} in legacy profiles). */
+    /** Chat UI role / preset picker label ({@code display_name} in legacy profiles). */
     public String getRole() {
         return role;
     }
@@ -151,8 +176,13 @@ public final class WorkflowDefinition {
     }
 
     /** Optional emoji shown beside the preset in the chat UI. */
-    public String getEmoji() {
+      public String getEmoji() {
         return emoji;
+    }
+
+    /** Studio palette, search, and canvas defaults. */
+    public DesignerDefinition getDesigner() {
+        return designer;
     }
 
     /** Temporal task queue name for routing runs of this workflow. */
@@ -191,6 +221,20 @@ public final class WorkflowDefinition {
     /** Child workflow artifacts composed or invoked by this workflow. */
     public List<ChildWorkflowDefinition> getChildWorkflows() {
         return childWorkflows;
+    }
+
+    /**
+     * Agent workflow references the runtime may delegate to (planner hint). Unlike
+     * {@link #getChildWorkflows()}, does not declare hard-wired sub-workflow composition.
+     */
+    public List<AgentReferenceDefinition> getAvailableAgents() {
+        return availableAgents;
+    }
+
+    /** Stable workflow ids from {@link #getAvailableAgents()} — not serialized (use {@code availableAgents}). */
+    @JsonIgnore
+    public List<String> getAvailableAgentIds() {
+        return availableAgents.stream().map(AgentReferenceDefinition::getId).toList();
     }
 
     public String getVersion() {
@@ -246,6 +290,11 @@ public final class WorkflowDefinition {
         return capability;
     }
 
+    /** Workflow-level orchestration and debugger hints (replay, debug, etc.). */
+    public WorkflowRuntimeDefinition getRuntime() {
+        return runtime;
+    }
+
     public RuntimeBindingDefinition getRuntimeBinding() {
         return runtimeBinding;
     }
@@ -298,10 +347,11 @@ public final class WorkflowDefinition {
             return false;
         }
         return Objects.equals(id, that.id)
-                && Objects.equals(name, that.name)
+                && Objects.equals(label, that.label)
                 && Objects.equals(role, that.role)
                 && Objects.equals(shortDescription, that.shortDescription)
                 && Objects.equals(emoji, that.emoji)
+                && Objects.equals(designer, that.designer)
                 && Objects.equals(queue, that.queue)
                 && Objects.equals(workflowType, that.workflowType)
                 && Objects.equals(runAgain, that.runAgain)
@@ -309,6 +359,7 @@ public final class WorkflowDefinition {
                 && Objects.equals(isExternalWorkflow, that.isExternalWorkflow)
                 && Objects.equals(isChildWorkflow, that.isChildWorkflow)
                 && Objects.equals(childWorkflows, that.childWorkflows)
+                && Objects.equals(availableAgents, that.availableAgents)
                 && Objects.equals(version, that.version)
                 && Objects.equals(nodes, that.nodes)
                 && Objects.equals(edges, that.edges)
@@ -321,6 +372,7 @@ public final class WorkflowDefinition {
                 && Objects.equals(extensions, that.extensions)
                 && Objects.equals(metadata, that.metadata)
                 && Objects.equals(capability, that.capability)
+                && Objects.equals(runtime, that.runtime)
                 && Objects.equals(runtimeBinding, that.runtimeBinding)
                 && Objects.equals(tools, that.tools)
                 && Objects.equals(agents, that.agents)
@@ -331,10 +383,11 @@ public final class WorkflowDefinition {
     public int hashCode() {
         return Objects.hash(
                 id,
-                name,
+                label,
                 role,
                 shortDescription,
                 emoji,
+                designer,
                 queue,
                 workflowType,
                 runAgain,
@@ -342,6 +395,7 @@ public final class WorkflowDefinition {
                 isExternalWorkflow,
                 isChildWorkflow,
                 childWorkflows,
+                availableAgents,
                 version,
                 nodes,
                 edges,
@@ -354,6 +408,7 @@ public final class WorkflowDefinition {
                 extensions,
                 metadata,
                 capability,
+                runtime,
                 runtimeBinding,
                 tools,
                 agents,
@@ -362,17 +417,18 @@ public final class WorkflowDefinition {
 
     @Override
     public String toString() {
-        return "WorkflowDefinition{id='" + id + "', name='" + name + "', role='" + role + "', nodes=" + nodes.size() + "}";
+        return "WorkflowDefinition{id='" + id + "', label='" + label + "', role='" + role + "', nodes=" + nodes.size() + "}";
     }
 
     @JsonPOJOBuilder(withPrefix = "")
     public static final class Builder {
 
         private String id;
-        private String name;
+        private String label;
         private String role;
         private String shortDescription;
         private String emoji;
+        private DesignerDefinition designer;
         private String queue;
         private String workflowType;
         private Boolean runAgain;
@@ -381,12 +437,17 @@ public final class WorkflowDefinition {
         private Boolean isExternalWorkflow;
         @JsonProperty("isChildWorkflow")
         private Boolean isChildWorkflow;
+        @JsonDeserialize(contentUsing = ChildWorkflowDefinitionDeserializer.class)
         private List<ChildWorkflowDefinition> childWorkflows;
+        @JsonDeserialize(contentUsing = AgentReferenceDefinitionDeserializer.class)
+        private List<AgentReferenceDefinition> availableAgents;
+        private WorkflowOrchestrationDefinition legacyOrchestration;
         private String version;
         private List<NodeDefinition> nodes;
         private List<EdgeDefinition> edges;
         private Map<String, WorkflowInputDefinition> inputs;
         private Map<String, StateFieldDefinition> state;
+        @JsonDeserialize(contentUsing = WorkflowParameterDefinitionDeserializer.class)
         private Map<String, WorkflowParameterDefinition> parameters;
         private List<VariableDefinition> variables;
         private List<ModelProviderDefinition> modelProviders;
@@ -394,6 +455,7 @@ public final class WorkflowDefinition {
         private List<ExtensionDefinition> extensions;
         private Map<String, Object> metadata;
         private CapabilityDefinition capability;
+        private WorkflowRuntimeDefinition runtime;
         private RuntimeBindingDefinition runtimeBinding;
         private List<ToolDefinition> tools;
         private List<AgentDefinition> agents;
@@ -404,8 +466,9 @@ public final class WorkflowDefinition {
             return this;
         }
 
-        public Builder name(String name) {
-            this.name = name;
+        @JsonAlias("name")
+        public Builder label(String label) {
+            this.label = label;
             return this;
         }
 
@@ -421,6 +484,11 @@ public final class WorkflowDefinition {
 
         public Builder emoji(String emoji) {
             this.emoji = emoji;
+            return this;
+        }
+
+        public Builder designer(DesignerDefinition designer) {
+            this.designer = designer;
             return this;
         }
 
@@ -464,6 +532,29 @@ public final class WorkflowDefinition {
                 this.childWorkflows = new java.util.ArrayList<>();
             }
             this.childWorkflows.add(childWorkflow);
+            return this;
+        }
+
+        public Builder availableAgents(List<AgentReferenceDefinition> availableAgents) {
+            this.availableAgents = availableAgents;
+            return this;
+        }
+
+        public Builder addAvailableAgent(String agentWorkflowId) {
+            return addAvailableAgent(AgentReferenceDefinition.of(agentWorkflowId));
+        }
+
+        public Builder addAvailableAgent(AgentReferenceDefinition agentReference) {
+            if (this.availableAgents == null) {
+                this.availableAgents = new java.util.ArrayList<>();
+            }
+            this.availableAgents.add(agentReference);
+            return this;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonSetter("orchestration")
+        public Builder legacyOrchestration(WorkflowOrchestrationDefinition legacyOrchestration) {
+            this.legacyOrchestration = legacyOrchestration;
             return this;
         }
 
@@ -569,6 +660,11 @@ public final class WorkflowDefinition {
             return this;
         }
 
+        public Builder runtime(WorkflowRuntimeDefinition runtime) {
+            this.runtime = runtime;
+            return this;
+        }
+
         public Builder runtimeBinding(RuntimeBindingDefinition runtimeBinding) {
             this.runtimeBinding = runtimeBinding;
             return this;
@@ -615,7 +711,49 @@ public final class WorkflowDefinition {
 
         public WorkflowDefinition build() {
             Objects.requireNonNull(id, "workflow id is required");
+            ensureRuntime();
+            mergeLegacyOrchestrationIntoRuntime();
             return new WorkflowDefinition(this);
+        }
+
+        private void ensureRuntime() {
+            if (runtime == null) {
+                runtime = WorkflowRuntimeDefinition.builder()
+                        .executionModel(ExecutionModel.INLINE)
+                        .build();
+                return;
+            }
+            if (runtime.getExecutionModel() == null) {
+                runtime = WorkflowRuntimeDefinition.builder()
+                        .contractVersion(runtime.getContractVersion())
+                        .executionModel(ExecutionModel.INLINE)
+                        .capabilities(runtime.getCapabilities())
+                        .defaultTimeout(runtime.getDefaultTimeout())
+                        .delegation(runtime.getDelegation())
+                        .build();
+            }
+        }
+
+        private void mergeLegacyOrchestrationIntoRuntime() {
+            if (legacyOrchestration == null) {
+                return;
+            }
+            RuntimeDelegationDefinition delegation = RuntimeDelegationDefinition.fromLegacy(legacyOrchestration);
+            if (runtime == null) {
+                runtime = org.olo.definition.runtime.WorkflowRuntimeDefinition.builder()
+                        .delegation(delegation)
+                        .build();
+                return;
+            }
+            if (runtime.getDelegation() == null) {
+                runtime = org.olo.definition.runtime.WorkflowRuntimeDefinition.builder()
+                        .contractVersion(runtime.getContractVersion())
+                        .executionModel(runtime.getExecutionModel())
+                        .capabilities(runtime.getCapabilities())
+                        .defaultTimeout(runtime.getDefaultTimeout())
+                        .delegation(delegation)
+                        .build();
+            }
         }
     }
 

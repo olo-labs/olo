@@ -2,6 +2,9 @@ package org.olo.definition.workflow;
 
 import org.olo.definition.human.HumanApprovalDefinition;
 import org.olo.definition.node.NodeDefinition;
+import org.olo.definition.execution.ExecutionKind;
+import org.olo.definition.execution.ExecutionModel;
+import org.olo.definition.node.NodeDefinition;
 import org.olo.definition.node.NodeType;
 import org.olo.definition.validation.ValidationTestFixtures;
 import org.olo.definition.validation.WorkflowValidator;
@@ -31,7 +34,7 @@ class WorkflowBuilderTest {
                 .build();
 
         assertThat(workflow.getId()).isEqualTo("stock-analysis");
-        assertThat(workflow.getName()).isEqualTo("Stock Workflow");
+        assertThat(workflow.getLabel()).isEqualTo("Stock Workflow");
         assertThat(workflow.getNodes()).hasSize(4);
         assertThat(workflow.getEdges()).hasSize(3);
         assertThat(WorkflowValidator.validate(workflow).valid()).isTrue();
@@ -132,14 +135,14 @@ class WorkflowBuilderTest {
                 .connect("support-agent", "output")
                 .build();
 
-        assertThat(workflow.getNodes()).anyMatch(
-                n -> "support-agent".equals(n.getId()) && NodeType.AGENT.value().equals(n.getType()));
-        assertThat(workflow.getNodes().stream()
-                        .filter(n -> "support-agent".equals(n.getId()))
-                        .findFirst()
-                        .orElseThrow()
-                        .getSubtype())
-                .isEqualTo("HANDOFF");
+        NodeDefinition agentNode = workflow.getNodes().stream()
+                .filter(n -> "support-agent".equals(n.getId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(agentNode.getType()).isEqualTo(NodeType.AGENT.value());
+        assertThat(agentNode.getSubtype()).isEqualTo("HANDOFF");
+        assertThat(agentNode.getExecutionKind()).isEqualTo(ExecutionKind.SUBWORKFLOW);
+        assertThat(agentNode.getExecutionModel()).isEqualTo(ExecutionModel.CHILD_WORKFLOW);
         assertThat(WorkflowValidator.validate(workflow).valid()).isTrue();
     }
 

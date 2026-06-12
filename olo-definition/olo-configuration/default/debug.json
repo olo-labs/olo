@@ -1,0 +1,90 @@
+{
+  "id" : "debug",
+  "label" : "Debug",
+  "role" : "Debug",
+  "shortDescription" : "Verbose output for troubleshooting",
+  "emoji" : "🐛",
+  "queue" : "debug",
+  "workflowType" : "olo",
+  "runAgain" : true,
+  "childWorkflows" : [ ],
+  "availableAgents" : [ ],
+  "version" : "1.0.0",
+  "capability" : {
+    "name" : "Debug",
+    "description" : "Verbose output for troubleshooting",
+    "tags" : [ "debug" ],
+    "examples" : [ ],
+    "required_inputs" : [ "input" ],
+    "required_outputs" : [ "output" ],
+    "tool_requirements" : [ ],
+    "required_context" : [ ]
+  },
+  "runtime" : {
+    "contractVersion" : "1.0",
+    "executionModel" : "INLINE",
+    "capabilities" : [ "DEBUG", "REPLAY" ]
+  },
+  "inputs" : { },
+  "state" : { },
+  "parameters" : { },
+  "nodes" : [ {
+    "id" : "input",
+    "type" : "INPUT",
+    "ports" : [ {
+      "id" : "out",
+      "name" : "out",
+      "schema" : "any",
+      "direction" : "OUTPUT",
+      "required" : false,
+      "minConnections" : 0,
+      "ui" : {
+        "position" : "RIGHT"
+      }
+    } ],
+    "reads" : [ ],
+    "writes" : [ ],
+    "configuration" : { }
+  }, {
+    "id" : "output",
+    "type" : "OUTPUT",
+    "ports" : [ {
+      "id" : "in",
+      "name" : "in",
+      "schema" : "any",
+      "direction" : "INPUT",
+      "required" : false,
+      "minConnections" : 0,
+      "ui" : {
+        "position" : "LEFT"
+      }
+    } ],
+    "reads" : [ ],
+    "writes" : [ ],
+    "configuration" : { }
+  } ],
+  "edges" : [ {
+    "sourceNodeId" : "input",
+    "targetNodeId" : "output"
+  } ],
+  "variables" : [ {
+    "name" : "ReturnValue",
+    "type" : "string",
+    "description" : "Workflow return message returned to the caller",
+    "required" : false,
+    "metadata" : {
+      "role" : "return"
+    }
+  } ],
+  "tools" : [ ],
+  "agents" : [ ],
+  "hooks" : [ ],
+  "modelProviders" : [ ],
+  "modelRouting" : [ ],
+  "extensions" : [ ],
+  "metadata" : {
+    "role" : "debug",
+    "description" : "Verbose output for troubleshooting",
+    "returnVariable" : "ReturnValue"
+  }
+}

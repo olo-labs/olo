@@ -2,10 +2,15 @@ package org.olo.definition.workflow;
 
 import org.olo.definition.agent.AgentDefinition;
 import org.olo.definition.capability.CapabilityDefinition;
+import org.olo.definition.designer.DesignerDefinition;
 import org.olo.definition.edge.EdgeDefinition;
+import org.olo.definition.execution.ExecutionKind;
+import org.olo.definition.execution.ExecutionModel;
 import org.olo.definition.extension.ExtensionDefinition;
 import org.olo.definition.hook.HookDefinition;
 import org.olo.definition.runtime.RuntimeBindingDefinition;
+import org.olo.spi.runtime.RuntimeCapability;
+import org.olo.definition.runtime.WorkflowRuntimeDefinition;
 import org.olo.definition.tool.ToolDefinition;
 import org.olo.definition.model.ModelProviderDefinition;
 import org.olo.definition.model.ModelRoutingDefinition;
@@ -15,7 +20,14 @@ import org.olo.definition.node.NodeDefinition;
 import org.olo.definition.node.NodeType;
 import org.olo.definition.port.PortDefinition;
 import org.olo.definition.port.PortDirection;
+import org.olo.definition.port.PortUiDefinition;
+import org.olo.definition.parameter.AgentWorkflowParameters;
 import org.olo.definition.parameter.WorkflowParameterDefinition;
+import org.olo.definition.runtime.AgentDelegationPolicy;
+import org.olo.definition.runtime.RuntimeDelegationDefinition;
+import org.olo.definition.planner.AgentAvailableAgents;
+import org.olo.definition.planner.AgentReferenceDefinition;
+import org.olo.definition.planner.WorkflowPlannerMetadata;
 import org.olo.definition.state.StateFieldDefinition;
 import org.olo.definition.variable.VariableDefinition;
 
@@ -49,19 +61,21 @@ public final class WorkflowBuilder {
     private final List<AgentDefinition> agents = new ArrayList<>();
     private final List<HookDefinition> hooks = new ArrayList<>();
     private final List<ChildWorkflowDefinition> childWorkflows = new ArrayList<>();
+    private final List<AgentReferenceDefinition> availableAgents = new ArrayList<>();
     private final Map<String, Object> metadata = new LinkedHashMap<>();
+    private WorkflowRuntimeDefinition.Builder workflowRuntimeBuilder;
 
     private WorkflowBuilder() {
     }
 
     /**
-     * Starts a new workflow; {@code name} is used as display name and to derive {@code id} if not set explicitly.
+     * Starts a new workflow; {@code label} is the display name and seeds {@code id} when not set explicitly.
      */
-    public static WorkflowBuilder create(String name) {
-        Objects.requireNonNull(name, "name is required");
+    public static WorkflowBuilder create(String label) {
+        Objects.requireNonNull(label, "label is required");
         WorkflowBuilder builder = new WorkflowBuilder();
-        builder.delegate.name(name);
-        builder.delegate.id(slugify(name));
+        builder.delegate.label(label);
+        builder.delegate.id(slugify(label));
         return builder;
     }
 
@@ -72,10 +86,13 @@ public final class WorkflowBuilder {
         Objects.requireNonNull(existing, "existing workflow is required");
         WorkflowBuilder builder = new WorkflowBuilder();
         builder.delegate.id(existing.getId());
-        builder.delegate.name(existing.getName());
+        builder.delegate.label(existing.getLabel());
         builder.delegate.role(existing.getRole());
         builder.delegate.shortDescription(existing.getShortDescription());
         builder.delegate.emoji(existing.getEmoji());
+        if (existing.getDesigner() != null) {
+            builder.delegate.designer(existing.getDesigner());
+        }
         builder.delegate.queue(existing.getQueue());
         builder.delegate.workflowType(existing.getWorkflowType());
         builder.delegate.runAgain(existing.isRunAgain());
@@ -83,6 +100,7 @@ public final class WorkflowBuilder {
         builder.delegate.isExternalWorkflow(existing.isExternalWorkflow());
         builder.delegate.isChildWorkflow(existing.isChildWorkflow());
         builder.childWorkflows.addAll(existing.getChildWorkflows());
+        builder.availableAgents.addAll(existing.getAvailableAgents());
         builder.delegate.version(existing.getVersion());
         builder.nodes.addAll(existing.getNodes());
         builder.edges.addAll(existing.getEdges());
@@ -103,6 +121,14 @@ public final class WorkflowBuilder {
         if (existing.getRuntimeBinding() != null) {
             builder.delegate.runtimeBinding(existing.getRuntimeBinding());
         }
+        if (existing.getRuntime() != null) {
+            builder.workflowRuntimeBuilder = WorkflowRuntimeDefinition.builder()
+                    .contractVersion(existing.getRuntime().getContractVersion())
+                    .executionModel(existing.getRuntime().getExecutionModel())
+                    .capabilities(existing.getRuntime().getCapabilities())
+                    .defaultTimeout(existing.getRuntime().getDefaultTimeout())
+                    .delegation(existing.getRuntime().getDelegation());
+        }
         return builder;
     }
 
@@ -111,8 +137,8 @@ public final class WorkflowBuilder {
         return this;
     }
 
-    public WorkflowBuilder name(String name) {
-        delegate.name(name);
+    public WorkflowBuilder label(String label) {
+        delegate.label(label);
         return this;
     }
 
@@ -165,6 +191,10 @@ public final class WorkflowBuilder {
         Objects.requireNonNull(childWorkflow, "childWorkflow is required");
         childWorkflows.add(childWorkflow);
         return this;
+    }
+
+    public WorkflowBuilder childWorkflowRef(String workflowId) {
+        return childWorkflow(ChildWorkflowDefinition.builder().workflowId(workflowId).build());
     }
 
     public WorkflowBuilder version(String version) {
@@ -235,6 +265,8 @@ public final class WorkflowBuilder {
                 .id(id)
                 .type(NodeType.AGENT)
                 .workflow(workflow)
+                .executionKind(ExecutionKind.SUBWORKFLOW)
+                .executionModel(ExecutionModel.CHILD_WORKFLOW)
                 .addPort(defaultPort("in", "in", PortDirection.INPUT))
                 .addPort(defaultPort("out", "out", PortDirection.OUTPUT));
         if (subtype != null) {
@@ -380,6 +412,87 @@ public final class WorkflowBuilder {
         return this;
     }
 
+    public WorkflowBuilder runtime(WorkflowRuntimeDefinition runtime) {
+        delegate.runtime(runtime);
+        this.workflowRuntimeBuilder = null;
+        return this;
+    }
+
+    /**
+     * Sets {@code runtime.executionModel} (catalog-aligned: {@code INLINE}, {@code ACTIVITY},
+     * {@code CHILD_WORKFLOW}, {@code EXTERNAL}).
+     */
+    public WorkflowBuilder executionModel(ExecutionModel executionModel) {
+        workflowRuntimeBuilder().executionModel(executionModel);
+        return this;
+    }
+
+    public WorkflowBuilder defaultTimeout(String defaultTimeout) {
+        workflowRuntimeBuilder().defaultTimeout(defaultTimeout);
+        return this;
+    }
+
+    /** {@code CHILD_WORKFLOW} agent runtime with debug, replay, timeout, and a 10-minute default. */
+    public WorkflowBuilder agentWorkflowRuntime() {
+        return executionModel(ExecutionModel.CHILD_WORKFLOW)
+                .debuggable()
+                .replayable()
+                .addRuntimeCapability(RuntimeCapability.TIMEOUT)
+                .defaultTimeout("PT10M");
+    }
+
+    /** Agent tuning parameters ({@link AgentWorkflowParameters}). */
+    public WorkflowBuilder agentParameters() {
+        AgentWorkflowParameters.defaults().forEach(this::parameter);
+        return this;
+    }
+
+    /** Planner routing metadata ({@link WorkflowPlannerMetadata}). */
+    public WorkflowBuilder agentPlannerMetadata() {
+        WorkflowPlannerMetadata.agentDefaults().forEach(this::metadata);
+        return this;
+    }
+
+    public WorkflowBuilder availableAgent(String agentWorkflowId) {
+        return availableAgent(AgentReferenceDefinition.of(agentWorkflowId));
+    }
+
+    public WorkflowBuilder availableAgent(AgentReferenceDefinition agentReference) {
+        availableAgents.add(agentReference);
+        return this;
+    }
+
+    /** Default {@code availableAgents} for the agent preset ({@link AgentAvailableAgents}). */
+    public WorkflowBuilder agentAvailableAgents() {
+        AgentAvailableAgents.agentPresetDefaults().forEach(this::availableAgent);
+        return this;
+    }
+
+    public WorkflowBuilder delegation(RuntimeDelegationDefinition delegation) {
+        workflowRuntimeBuilder().delegation(delegation);
+        return this;
+    }
+
+    /** Delegation guardrails for the agent preset ({@link AgentDelegationPolicy}). */
+    public WorkflowBuilder agentDelegation() {
+        return delegation(AgentDelegationPolicy.agentPresetDefaults());
+    }
+
+    public WorkflowBuilder debuggable() {
+        workflowRuntimeBuilder().debuggable(true);
+        return this;
+    }
+
+    public WorkflowBuilder replayable() {
+        workflowRuntimeBuilder().replayable(true);
+        return this;
+    }
+
+    public WorkflowBuilder addRuntimeCapability(RuntimeCapability capability) {
+        workflowRuntimeBuilder().addCapability(capability);
+        return this;
+    }
+
     public WorkflowBuilder runtimeBinding(RuntimeBindingDefinition runtimeBinding) {
         delegate.runtimeBinding(runtimeBinding);
         return this;
@@ -403,6 +516,11 @@ public final class WorkflowBuilder {
         return this;
     }
 
+    public WorkflowBuilder designer(DesignerDefinition designer) {
+        delegate.designer(designer);
+        return this;
+    }
+
     public WorkflowDefinition build() {
         delegate.nodes(List.copyOf(nodes));
         delegate.edges(List.copyOf(edges));
@@ -417,8 +535,19 @@ public final class WorkflowBuilder {
         delegate.agents(List.copyOf(agents));
         delegate.hooks(List.copyOf(hooks));
         delegate.childWorkflows(List.copyOf(childWorkflows));
+        delegate.availableAgents(List.copyOf(availableAgents));
         delegate.metadata(Map.copyOf(metadata));
+        if (workflowRuntimeBuilder != null) {
+            delegate.runtime(workflowRuntimeBuilder.build());
+        }
         return delegate.build();
+    }
+
+    private WorkflowRuntimeDefinition.Builder workflowRuntimeBuilder() {
+        if (workflowRuntimeBuilder == null) {
+            workflowRuntimeBuilder = WorkflowRuntimeDefinition.builder();
+        }
+        return workflowRuntimeBuilder;
     }
 
     private void ensureUniqueNodeId(String id) {
@@ -442,6 +571,7 @@ public final class WorkflowBuilder {
                 .name(name)
                 .schema("any")
                 .direction(direction)
+                .ui(PortUiDefinition.forDirection(direction))
                 .build();
     }
 }

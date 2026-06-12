@@ -22,6 +22,7 @@ public final class PortDefinition {
     private final boolean required;
     private final int minConnections;
     private final Integer maxConnections;
+    private final PortUiDefinition ui;
 
     private PortDefinition(Builder builder) {
         this.id = builder.id;
@@ -31,6 +32,7 @@ public final class PortDefinition {
         this.required = builder.required;
         this.minConnections = builder.minConnections;
         this.maxConnections = builder.maxConnections;
+        this.ui = builder.ui == null ? PortUiDefinition.forDirection(builder.direction) : builder.ui;
     }
 
     public static Builder builder() {
@@ -74,6 +76,10 @@ public final class PortDefinition {
         return maxConnections;
     }
 
+    public PortUiDefinition getUi() {
+        return ui;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -88,12 +94,13 @@ public final class PortDefinition {
                 && Objects.equals(name, that.name)
                 && Objects.equals(schema, that.schema)
                 && direction == that.direction
-                && Objects.equals(maxConnections, that.maxConnections);
+                && Objects.equals(maxConnections, that.maxConnections)
+                && Objects.equals(ui, that.ui);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, schema, direction, required, minConnections, maxConnections);
+        return Objects.hash(id, name, schema, direction, required, minConnections, maxConnections, ui);
     }
 
     @Override
@@ -111,6 +118,7 @@ public final class PortDefinition {
         private boolean required;
         private int minConnections;
         private Integer maxConnections;
+        private PortUiDefinition ui;
 
         public Builder id(String id) {
             this.id = id;
@@ -144,6 +152,11 @@ public final class PortDefinition {
 
         public Builder maxConnections(Integer maxConnections) {
             this.maxConnections = maxConnections;
+            return this;
+        }
+
+        public Builder ui(PortUiDefinition ui) {
+            this.ui = ui;
             return this;
         }
 

@@ -43,7 +43,7 @@ The Olo Temporal SDK (`olo-temporal-sdk`) is a Java library that wraps the Tempo
 
 ## 5. Usage pattern (from backend)
 
-1. Load regional config from **`olo.configuration.dir`** (e.g. `olo-mono/olo-configuration/default/*.json`).
+1. Load regional config from **`olo.configuration.dir`** (e.g. `olo-mono/olo-definition/olo-configuration/default/*.json`).
 2. Resolve defaults with **`ResolvedOloRuntimeSettings`**: tenant id (region folder name), default task queue and workflow type (first workflow by `id`).
 3. Create the SDK client:
    ```java

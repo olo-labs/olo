@@ -27,6 +27,8 @@ class JsonWorkflowSerializerTest {
 
     String json = serializer.serialize(original);
     assertThat(json).contains("\"id\" : \"stock-analysis\"");
+    assertThat(json).contains("\"label\" : \"StockAnalysis\"");
+    assertThat(json).doesNotContain("\"name\" : \"StockAnalysis\"");
     assertThat(json).contains("\"type\" : \"MODEL\"");
 
     WorkflowDefinition restored = serializer.deserialize(json);
@@ -90,12 +92,12 @@ class JsonWorkflowSerializerTest {
             .id("parent-orchestration")
             .childWorkflow(
                 ChildWorkflowDefinition.builder()
-                    .queue("research-agent")
+                    .workflowId("research-agent")
                     .workflowVersion("2.1.0")
                     .build())
             .childWorkflow(
                 ChildWorkflowDefinition.builder()
-                    .queue("risk-agent")
+                    .workflowId("risk-agent")
                     .workflowVersion("1.0.0")
                     .build())
             .capability(ValidationTestFixtures.minimalCapability())
@@ -106,13 +108,34 @@ class JsonWorkflowSerializerTest {
 
     String json = serializer.serialize(original);
     assertThat(json).contains("\"childWorkflows\"");
-    assertThat(json).contains("\"queue\" : \"research-agent\"");
+    assertThat(json).contains("\"workflowId\" : \"research-agent\"");
     assertThat(json).contains("\"workflowVersion\" : \"2.1.0\"");
 
     WorkflowDefinition restored = serializer.deserialize(json);
     assertThat(restored.getChildWorkflows()).hasSize(2);
-    assertThat(restored.getChildWorkflows().get(0).getQueue()).isEqualTo("research-agent");
+    assertThat(restored.getChildWorkflows().get(0).getWorkflowId()).isEqualTo("research-agent");
     assertThat(restored.getChildWorkflows().get(0).getWorkflowVersion()).isEqualTo("2.1.0");
     assertThat(restored).isEqualTo(original);
+  }
+
+  @Test
+  void deserializesLegacyWorkflowNameAsLabel() throws Exception {
+    WorkflowDefinition workflow =
+        serializer.deserialize(
+            """
+            {
+              "id": "agent",
+              "name": "Agent",
+              "capability": {
+                "name": "Agent",
+                "description": "test",
+                "required_inputs": ["input"],
+                "required_outputs": ["output"]
+              },
+              "nodes": []
+            }
+            """);
+
+    assertThat(workflow.getLabel()).isEqualTo("Agent");
   }
 }

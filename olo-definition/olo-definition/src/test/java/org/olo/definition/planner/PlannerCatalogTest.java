@@ -1,6 +1,7 @@
 package org.olo.definition.planner;
 
 import org.olo.definition.agent.AgentDefinition;
+import org.olo.definition.execution.ExecutionModel;
 import org.olo.definition.capability.CapabilityDefinition;
 import org.olo.definition.tool.ToolDefinition;
 import org.olo.definition.validation.ValidationTestFixtures;
@@ -42,6 +43,7 @@ class PlannerCatalogTest {
                         .workflow(WorkflowReferenceDefinition.builder()
                                 .workflowId("research-agent")
                                 .build())
+                        .executionModel(ExecutionModel.CHILD_WORKFLOW)
                         .build())
                 .inputNode("input")
                 .outputNode("output")

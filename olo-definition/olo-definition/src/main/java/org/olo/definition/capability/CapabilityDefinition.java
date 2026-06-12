@@ -16,6 +16,11 @@ import java.util.Objects;
  * Planner-readable contract shared by workflows, tools, agents, and nodes.
  * Runtime graphs and {@code configuration} stay separate; planners consume only capability metadata.
  * <p>
+ * {@link #getName()} is the capability descriptor title for planners and orchestrators — not the
+ * workflow Studio label ({@link org.olo.definition.workflow.WorkflowDefinition#getLabel()}). The two
+ * often match on presets (e.g. both {@code "Planner"}) but serve different layers: UI display vs
+ * capability contract.
+ * <p>
  * {@link #getRequiredInputs()} / {@link #getRequiredOutputs()} are semantic planner contracts — not the
  * same as workflow invocation {@code inputs} on {@link org.olo.definition.workflow.WorkflowDefinition}.
  */
@@ -62,6 +67,7 @@ public final class CapabilityDefinition {
         return id;
     }
 
+    /** Capability descriptor title (planner contract) — not {@link org.olo.definition.workflow.WorkflowDefinition#getLabel()}. */
     public String getName() {
         return name;
     }

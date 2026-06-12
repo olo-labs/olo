@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import org.olo.definition.error.OnFailureDefinition;
 import org.olo.definition.execution.ExecutionKind;
+import org.olo.definition.execution.ExecutionModel;
 import org.olo.definition.human.HumanApprovalDefinition;
 import org.olo.definition.parallel.JoinDefinition;
 import org.olo.definition.runtime.RuntimeBindingDefinition;
@@ -27,6 +28,7 @@ import java.util.Objects;
 public final class NodeExecutionDefinition {
 
     private final ExecutionKind executionKind;
+    private final ExecutionModel executionModel;
     private final String subtype;
     private final String version;
     private final WorkflowReferenceDefinition workflow;
@@ -38,6 +40,7 @@ public final class NodeExecutionDefinition {
 
     private NodeExecutionDefinition(Builder builder) {
         this.executionKind = builder.executionKind;
+        this.executionModel = builder.executionModel;
         this.subtype = builder.subtype;
         this.version = builder.version;
         this.workflow = builder.workflow;
@@ -54,6 +57,10 @@ public final class NodeExecutionDefinition {
 
     public ExecutionKind getExecutionKind() {
         return executionKind;
+    }
+
+    public ExecutionModel getExecutionModel() {
+        return executionModel;
     }
 
     public String getSubtype() {
@@ -92,6 +99,7 @@ public final class NodeExecutionDefinition {
 
     boolean isEffectivelyEmpty() {
         return executionKind == null
+                && executionModel == null
                 && subtype == null
                 && version == null
                 && workflow == null
@@ -111,6 +119,7 @@ public final class NodeExecutionDefinition {
             return false;
         }
         return executionKind == that.executionKind
+                && executionModel == that.executionModel
                 && Objects.equals(subtype, that.subtype)
                 && Objects.equals(version, that.version)
                 && Objects.equals(workflow, that.workflow)
@@ -124,13 +133,23 @@ public final class NodeExecutionDefinition {
     @Override
     public int hashCode() {
         return Objects.hash(
-                executionKind, subtype, version, workflow, join, runtimeBinding, getRouters(), onFailure, approval);
+                executionKind,
+                executionModel,
+                subtype,
+                version,
+                workflow,
+                join,
+                runtimeBinding,
+                getRouters(),
+                onFailure,
+                approval);
     }
 
     @JsonPOJOBuilder(withPrefix = "")
     public static final class Builder {
 
         private ExecutionKind executionKind;
+        private ExecutionModel executionModel;
         private String subtype;
         private String version;
         @JsonProperty("workflowRef")
@@ -144,6 +163,11 @@ public final class NodeExecutionDefinition {
 
         public Builder executionKind(ExecutionKind executionKind) {
             this.executionKind = executionKind;
+            return this;
+        }
+
+        public Builder executionModel(ExecutionModel executionModel) {
+            this.executionModel = executionModel;
             return this;
         }
 

@@ -5,7 +5,15 @@ plugins {
 
 description = 'Serializable workflow graph definitions for OLO AI orchestration'
 
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
 dependencies {
+    api 'org.olo:olo-spi:0.1.0-SNAPSHOT'
+    api 'org.olo:olo-annotation:0.1.0-SNAPSHOT'
+    testImplementation 'org.olo:olo-core-nodes:0.1.0-SNAPSHOT'
     api 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
     api 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2'
     api 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.18.2'
@@ -29,20 +37,48 @@ jar {
     }
 }
 
-tasks.register('generateSamples', JavaExec) {
+def samplesDir = rootProject.layout.projectDirectory.dir('samples')
+def configurationDir = rootProject.layout.projectDirectory.dir('olo-configuration/default')
+
+tasks.register('generateSamples', Test) {
     group = 'build'
-    description = 'Write workflow JSON/YAML samples under samples/'
+    description = 'Regenerate workflow JSON/YAML samples via SampleWorkflowRegenerationTest'
     dependsOn compileTestJava
+    testClassesDirs = sourceSets.test.output.classesDirs
     classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'org.olo.definition.samples.SampleWorkflowGenerator'
     workingDir = rootProject.projectDir
-    args rootProject.file('samples').absolutePath
+    systemProperty 'olo.samples.dir', samplesDir.asFile.absolutePath
+    filter {
+        includeTestsMatching 'org.olo.definition.samples.SampleWorkflowRegenerationTest'
+    }
 }
 
-tasks.test {
-    dependsOn generateSamples
+tasks.register('generateConfiguration', Test) {
+    group = 'build'
+    description = 'Regenerate olo-configuration/default presets via DefaultConfigurationRegenerationTest'
+    dependsOn compileTestJava
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
     workingDir = rootProject.projectDir
-    systemProperty 'olo.samples.dir', rootProject.file('samples').absolutePath
+    systemProperty 'olo.configuration.dir', configurationDir.asFile.absolutePath
+    filter {
+        includeTestsMatching 'org.olo.definition.configuration.DefaultConfigurationRegenerationTest'
+    }
+}
+
+tasks.named('test', Test) {
+    dependsOn generateSamples, generateConfiguration
+    workingDir = rootProject.projectDir
+    systemProperty 'olo.samples.dir', samplesDir.asFile.absolutePath
+    systemProperty 'olo.configuration.dir', configurationDir.asFile.absolutePath
+    filter {
+        excludeTestsMatching 'org.olo.definition.samples.SampleWorkflowRegenerationTest'
+        excludeTestsMatching 'org.olo.definition.configuration.DefaultConfigurationRegenerationTest'
+    }
+}
+
+tasks.named('check') {
+    dependsOn generateSamples, generateConfiguration
 }
 
 publishing {

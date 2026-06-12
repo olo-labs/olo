@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 import org.olo.definition.capability.CapabilityDefinition;
 import org.olo.definition.error.OnFailureDefinition;
 import org.olo.definition.execution.ExecutionKind;
+import org.olo.definition.execution.ExecutionModel;
 import org.olo.definition.hook.NodeHooksDefinition;
 import org.olo.definition.human.HumanApprovalDefinition;
 import org.olo.definition.parallel.JoinDefinition;
@@ -106,6 +107,12 @@ public final class NodeDefinition {
     @JsonIgnore
     public ExecutionKind getExecutionKind() {
         return execution == null ? null : execution.getExecutionKind();
+    }
+
+    /** Convenience for validators and builders; serialized under {@code execution}. */
+    @JsonIgnore
+    public ExecutionModel getExecutionModel() {
+        return execution == null ? null : execution.getExecutionModel();
     }
 
     /** Convenience for validators and builders; serialized under {@code execution}. */
@@ -277,6 +284,11 @@ public final class NodeDefinition {
 
         public Builder executionKind(ExecutionKind executionKind) {
             ensureExecutionBuilder().executionKind(executionKind);
+            return this;
+        }
+
+        public Builder executionModel(ExecutionModel executionModel) {
+            ensureExecutionBuilder().executionModel(executionModel);
             return this;
         }
 

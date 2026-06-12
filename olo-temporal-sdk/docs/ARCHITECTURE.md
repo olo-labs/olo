@@ -137,7 +137,7 @@ Constructed via **builder** only (no public constructor).
 
 `DemoConfig` builds `TemporalClient` from `olo.temporal.target` and `ResolvedOloRuntimeSettings` (namespace, workflow type). It also exposes beans `oloTaskQueue`, `oloDefaultTenantId`, and `oloCallbackBaseUrl`.
 
-**Workflow JSON** (e.g. `olo-mono/olo-configuration/default/ask.json`):
+**Workflow JSON** (e.g. `olo-mono/olo-definition/olo-configuration/default/ask.json`):
 
 | Field | Backend use |
 |-------|-------------|
@@ -206,4 +206,4 @@ Payload shape (`WorkflowInput`) is defined in **olo-workflow-input**; the SDK do
 | [DESIGN.md](./DESIGN.md) | Goals, non-goals, usage patterns. |
 | [olo/.env.example](../../.env.example) | Backend env vars (`OLO_TEMPORAL_TARGET`, `OLO_CONFIGURATION_DIR`, …). |
 | [olo-chat/docs/CHAT_UI.md](../../../olo-chat/docs/CHAT_UI.md) | Frontend presets, task queues per profile. |
-| [olo-mono/olo-configuration/default/](../../../olo-mono/olo-configuration/default/) | Example workflow JSON files. |
+| [olo-mono/olo-definition/olo-configuration/default/](../../../olo-mono/olo-definition/olo-configuration/default/) | Example workflow JSON files. |

@@ -1,6 +1,7 @@
 package org.olo.definition.runtime;
 
 import org.olo.definition.agent.AgentDefinition;
+import org.olo.definition.execution.ExecutionModel;
 import org.olo.definition.capability.CapabilityDefinition;
 import org.olo.definition.serializer.JsonWorkflowSerializer;
 import org.olo.definition.tool.ToolDefinition;
@@ -71,6 +72,8 @@ class RuntimeBindingTest {
                         .runtimeBinding(RuntimeBindingDefinition.builder()
                                 .implementationId("default-agent-runner")
                                 .build())
+                        .executionModel(ExecutionModel.CHILD_WORKFLOW)
+                        .systemPrompt("You are a technical analysis expert.")
                         .build())
                 .inputNode("input")
                 .outputNode("output")

@@ -1,6 +1,7 @@
 package org.olo.definition.workflow;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -11,18 +12,18 @@ import java.util.Objects;
 
 /**
  * Declares a child workflow composed or invoked by a parent workflow.
- * {@link #getQueue()} is the Temporal task queue name for dispatching the child.
+ * {@link #getWorkflowId()} references the child workflow definition id.
  */
-@JsonDeserialize(builder = ChildWorkflowDefinition.Builder.class)
+@JsonDeserialize(using = ChildWorkflowDefinitionDeserializer.class)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonIgnoreProperties(ignoreUnknown = true)
 public final class ChildWorkflowDefinition {
 
-    private final String queue;
+    private final String workflowId;
     private final String workflowVersion;
 
     private ChildWorkflowDefinition(Builder builder) {
-        this.queue = builder.queue;
+        this.workflowId = builder.workflowId;
         this.workflowVersion = builder.workflowVersion;
     }
 
@@ -30,10 +31,18 @@ public final class ChildWorkflowDefinition {
         return new Builder();
     }
 
-    /** Temporal task queue name for this child workflow. */
-    @JsonProperty("queue")
+    @JsonProperty("workflowId")
+    public String getWorkflowId() {
+        return workflowId;
+    }
+
+    /**
+     * @deprecated Prefer {@link #getWorkflowId()}; retained for dispatch code that still names this a queue.
+     */
+    @Deprecated
+    @JsonIgnore
     public String getQueue() {
-        return queue;
+        return workflowId;
     }
 
     @JsonProperty("workflowVersion")
@@ -49,19 +58,19 @@ public final class ChildWorkflowDefinition {
         if (!(o instanceof ChildWorkflowDefinition that)) {
             return false;
         }
-        return Objects.equals(queue, that.queue)
+        return Objects.equals(workflowId, that.workflowId)
                 && Objects.equals(workflowVersion, that.workflowVersion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(queue, workflowVersion);
+        return Objects.hash(workflowId, workflowVersion);
     }
 
     @Override
     public String toString() {
-        return "ChildWorkflowDefinition{queue='"
-                + queue
+        return "ChildWorkflowDefinition{workflowId='"
+                + workflowId
                 + "', workflowVersion='"
                 + workflowVersion
                 + "'}";
@@ -70,20 +79,20 @@ public final class ChildWorkflowDefinition {
     @JsonPOJOBuilder(withPrefix = "")
     public static final class Builder {
 
-        @JsonAlias("workflowId")
-        private String queue;
+        @JsonAlias("queue")
+        private String workflowId;
         @JsonProperty("workflowVersion")
         private String workflowVersion;
 
-        public Builder queue(String queue) {
-            this.queue = queue;
+        public Builder workflowId(String workflowId) {
+            this.workflowId = workflowId;
             return this;
         }
 
-        /** @deprecated use {@link #queue(String)} — legacy JSON used {@code workflowId}. */
+        /** @deprecated use {@link #workflowId(String)} — legacy JSON used {@code queue}. */
         @Deprecated
-        public Builder workflowId(String workflowId) {
-            return queue(workflowId);
+        public Builder queue(String queue) {
+            return workflowId(queue);
         }
 
         public Builder workflowVersion(String workflowVersion) {
@@ -92,7 +101,7 @@ public final class ChildWorkflowDefinition {
         }
 
         public ChildWorkflowDefinition build() {
-            Objects.requireNonNull(queue, "queue is required");
+            Objects.requireNonNull(workflowId, "workflowId is required");
             return new ChildWorkflowDefinition(this);
         }
     }

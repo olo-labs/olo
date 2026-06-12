@@ -1,0 +1,185 @@
+{
+  "id" : "agent",
+  "label" : "Agent",
+  "role" : "Agent",
+  "shortDescription" : "Autonomous tool-using agent",
+  "emoji" : "🤖",
+  "designer" : {
+    "paletteGroup" : "Agents",
+    "searchKeywords" : [ "planning", "task", "agent" ],
+    "nodeSize" : {
+      "width" : 300,
+      "height" : 120
+    },
+    "resizable" : true,
+    "draggable" : true
+  },
+  "queue" : "agent",
+  "workflowType" : "olo",
+  "runAgain" : true,
+  "childWorkflows" : [ ],
+  "availableAgents" : [ {
+    "id" : "planner"
+  }, {
+    "id" : "reviewer"
+  }, {
+    "id" : "architect"
+  } ],
+  "version" : "1.0.0",
+  "capability" : {
+    "name" : "Agent",
+    "description" : "Autonomous tool-using agent",
+    "tags" : [ "agent" ],
+    "examples" : [ ],
+    "required_inputs" : [ "input" ],
+    "required_outputs" : [ "output" ],
+    "tool_requirements" : [ ],
+    "required_context" : [ ]
+  },
+  "runtime" : {
+    "contractVersion" : "1.0",
+    "executionModel" : "CHILD_WORKFLOW",
+    "capabilities" : [ "DEBUG", "REPLAY", "TIMEOUT" ],
+    "defaultTimeout" : "PT10M",
+    "delegation" : {
+      "enabled" : true,
+      "parallelEnabled" : true,
+      "maxDepth" : 3,
+      "maxDelegations" : 10,
+      "resultAggregation" : "MERGE",
+      "memoryScope" : "SHARED"
+    }
+  },
+  "inputs" : { },
+  "state" : { },
+  "parameters" : {
+    "systemPrompt" : {
+      "type" : "string",
+      "label" : "System Prompt",
+      "description" : "System prompt for the agent",
+      "defaultValue" : "",
+      "required" : false,
+      "ui" : {
+        "widget" : "TEXTAREA",
+        "group" : "Model Settings",
+        "help" : "Optional instructions that shape agent behavior.",
+        "placeholder" : "You are a helpful assistant…",
+        "order" : 0
+      }
+    },
+    "maxIterations" : {
+      "type" : "integer",
+      "label" : "Max Iterations",
+      "description" : "Maximum agent reasoning iterations",
+      "defaultValue" : 10,
+      "required" : false,
+      "validation" : {
+        "minimum" : 1.0,
+        "maximum" : 100.0,
+        "step" : 1.0
+      },
+      "ui" : {
+        "widget" : "NUMBER",
+        "group" : "Model Settings",
+        "help" : "Caps how many planner/tool loops the agent may run.",
+        "order" : 1
+      }
+    },
+    "model" : {
+      "type" : "string",
+      "label" : "Model",
+      "description" : "Model identifier",
+      "defaultValue" : "",
+      "required" : true,
+      "validation" : {
+        "minLength" : 1
+      },
+      "ui" : {
+        "widget" : "MODEL_SELECTOR",
+        "group" : "Model Settings",
+        "help" : "LLM used for agent reasoning.",
+        "order" : 2
+      }
+    },
+    "temperature" : {
+      "type" : "number",
+      "label" : "Temperature",
+      "description" : "Sampling temperature",
+      "defaultValue" : 0.2,
+      "required" : false,
+      "validation" : {
+        "minimum" : 0.0,
+        "maximum" : 2.0,
+        "step" : 0.1
+      },
+      "ui" : {
+        "widget" : "SLIDER",
+        "group" : "Model Settings",
+        "help" : "Higher values increase response creativity.",
+        "order" : 3
+      }
+    }
+  },
+  "nodes" : [ {
+    "id" : "input",
+    "type" : "INPUT",
+    "ports" : [ {
+      "id" : "out",
+      "name" : "out",
+      "schema" : "any",
+      "direction" : "OUTPUT",
+      "required" : false,
+      "minConnections" : 0,
+      "ui" : {
+        "position" : "RIGHT"
+      }
+    } ],
+    "reads" : [ ],
+    "writes" : [ ],
+    "configuration" : { }
+  }, {
+    "id" : "output",
+    "type" : "OUTPUT",
+    "ports" : [ {
+      "id" : "in",
+      "name" : "in",
+      "schema" : "any",
+      "direction" : "INPUT",
+      "required" : false,
+      "minConnections" : 0,
+      "ui" : {
+        "position" : "LEFT"
+      }
+    } ],
+    "reads" : [ ],
+    "writes" : [ ],
+    "configuration" : { }
+  } ],
+  "edges" : [ {
+    "sourceNodeId" : "input",
+    "targetNodeId" : "output"
+  } ],
+  "variables" : [ {
+    "name" : "ReturnValue",
+    "type" : "string",
+    "description" : "Workflow return message returned to the caller",
+    "required" : false,
+    "metadata" : {
+      "role" : "return"
+    }
+  } ],
+  "tools" : [ ],
+  "agents" : [ ],
+  "hooks" : [ ],
+  "modelProviders" : [ ],
+  "modelRouting" : [ ],
+  "extensions" : [ ],
+  "metadata" : {
+    "planningStrategy" : "react",
+    "agentType" : "autonomous",
+    "role" : "agent",
+    "description" : "Autonomous tool-using agent",
+    "agentSelectionStrategy" : "dynamic",
+    "returnVariable" : "ReturnValue"
+  }
+}

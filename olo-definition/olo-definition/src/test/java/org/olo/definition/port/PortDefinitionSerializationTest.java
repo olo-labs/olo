@@ -3,6 +3,8 @@ package org.olo.definition.port;
 import org.olo.definition.node.NodeDefinition;
 import org.olo.definition.node.NodeType;
 import org.olo.definition.port.PortDirection;
+import org.olo.definition.port.PortUiDefinition;
+import org.olo.definition.port.PortUiPosition;
 import org.olo.definition.serializer.JsonWorkflowSerializer;
 import org.olo.definition.capability.CapabilityDefinition;
 import org.olo.definition.validation.ValidationTestFixtures;
@@ -50,5 +52,34 @@ class PortDefinitionSerializationTest {
                 .get()
                 .extracting(PortDefinition::getSchema)
                 .isEqualTo("Stock[]");
+    }
+
+    @Test
+    void roundTripsPortUiPosition() throws Exception {
+        WorkflowDefinition workflow = WorkflowDefinition.builder()
+                .id("port-ui")
+                .capability(CapabilityDefinition.builder()
+                        .name("Port UI")
+                        .description("Port UI round-trip test")
+                        .addInput("input")
+                        .addOutput("output")
+                        .build())
+                .addNode(ValidationTestFixtures.node("input", NodeType.INPUT)
+                        .addPort(PortDefinition.builder()
+                                .id("out")
+                                .name("out")
+                                .schema("any")
+                                .direction(PortDirection.OUTPUT)
+                                .ui(PortUiDefinition.builder().position(PortUiPosition.RIGHT).build())
+                                .build())
+                        .build())
+                .build();
+
+        String serialized = json.serialize(workflow);
+        assertThat(serialized).contains("\"ui\" : {").contains("\"position\" : \"RIGHT\"");
+
+        WorkflowDefinition restored = json.deserialize(serialized);
+        PortDefinition outPort = restored.getNodes().get(0).getPorts().get(0);
+        assertThat(outPort.getUi().getPosition()).isEqualTo(PortUiPosition.RIGHT);
     }
 }
