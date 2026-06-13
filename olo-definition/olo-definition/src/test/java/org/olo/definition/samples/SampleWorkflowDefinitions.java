@@ -54,10 +54,10 @@ final class SampleWorkflowDefinitions {
 
     private static NodeDefinition.Builder nodeWithDefaultPorts(String id, NodeType type) {
         NodeDefinition.Builder builder = NodeDefinition.builder().id(id).type(type);
-        if (type != NodeType.INPUT) {
+        if (type != NodeType.START) {
             builder.addPort(PortDefinition.inputPort("in", "any"));
         }
-        if (type != NodeType.OUTPUT) {
+        if (type != NodeType.END) {
             builder.addPort(PortDefinition.outputPort("out", "any"));
         }
         return builder;
@@ -113,7 +113,7 @@ final class SampleWorkflowDefinitions {
                                 .implementationId("stock-screener")
                                 .build())
                         .build())
-                .addNode(nodeWithDefaultPorts("request", NodeType.INPUT)
+                .addNode(nodeWithDefaultPorts("request", NodeType.START)
                         .putConfiguration("schema", schema)
                         .build())
                 .addNode(nodeWithDefaultPorts("analysis", NodeType.MODEL)
@@ -144,7 +144,7 @@ final class SampleWorkflowDefinitions {
                         .build())
                 .addNode(NodeDefinition.builder()
                         .id("response")
-                        .type(NodeType.OUTPUT)
+                        .type(NodeType.END)
                         .addPort(PortDefinition.inputPort("stocks", "Stock[]"))
                         .build())
                 .connect("request", "analysis")

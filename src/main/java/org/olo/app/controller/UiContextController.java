@@ -67,7 +67,8 @@ public class UiContextController {
             String emoji,
             String queue,
             String pipeline,
-            boolean runAgain) {}
+            boolean runAgain,
+            boolean isDefault) {}
 
     public record UiContextDto(
             String tenantId,
@@ -126,6 +127,12 @@ public class UiContextController {
                 }
                 out.add(toChatProfile(workflow));
             }
+            out.sort((a, b) -> {
+                if (a.isDefault() != b.isDefault()) {
+                    return a.isDefault() ? -1 : 1;
+                }
+                return a.id().compareToIgnoreCase(b.id());
+            });
             return out;
         } catch (Exception e) {
             return List.of();
@@ -134,12 +141,13 @@ public class UiContextController {
 
     private static ChatProfileDto toChatProfile(WorkflowDefinition workflow) {
         String id = workflow.getId();
-        String displayName = nonBlank(workflow.getRole(), workflow.getName(), id);
+        String displayName = nonBlank(workflow.getRole(), workflow.getLabel(), id);
         String displaySummary = workflow.getShortDescription() != null ? workflow.getShortDescription() : "";
         String emoji = workflow.getEmoji() != null ? workflow.getEmoji() : "";
         String queue = workflow.getQueue() != null ? workflow.getQueue() : "";
         boolean runAgain = Boolean.TRUE.equals(workflow.isRunAgain());
-        return new ChatProfileDto(id, displayName, displaySummary, emoji, queue, id, runAgain);
+        boolean isDefault = Boolean.TRUE.equals(workflow.isDefault());
+        return new ChatProfileDto(id, displayName, displaySummary, emoji, queue, id, runAgain, isDefault);
     }
 
     private static String nonBlank(String... candidates) {

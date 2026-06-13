@@ -53,6 +53,9 @@ public class OloFilesystemConfigurationConfig {
     }
 
     private static String resolveDefaultRegion(Map<String, RegionalConfigurationSnapshot> snapshots) {
+        if (snapshots.containsKey("current-active")) {
+            return "current-active";
+        }
         if (snapshots.containsKey("default")) {
             return "default";
         }

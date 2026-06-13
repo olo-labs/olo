@@ -23,7 +23,7 @@ class YamlWorkflowSerializerTest {
 
         String yaml = serializer.serialize(original);
         assertThat(yaml).contains("stock-analysis");
-        assertThat(yaml).contains("INPUT");
+        assertThat(yaml).contains("START");
 
         WorkflowDefinition restored = serializer.deserialize(yaml);
         assertThat(restored).isEqualTo(original);

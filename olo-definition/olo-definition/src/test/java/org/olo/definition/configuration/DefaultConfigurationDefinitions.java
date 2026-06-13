@@ -3,6 +3,8 @@ package org.olo.definition.configuration;
 import org.olo.definition.capability.CapabilityDefinition;
 import org.olo.definition.designer.DesignerDefinition;
 import org.olo.definition.execution.ExecutionModel;
+import org.olo.definition.preset.WorkflowPresetInfrastructure;
+import org.olo.definition.workflow.ChildWorkflowDefinition;
 import org.olo.definition.workflow.WorkflowBuilder;
 import org.olo.definition.workflow.WorkflowDefinition;
 
@@ -18,13 +20,14 @@ final class DefaultConfigurationDefinitions {
         return builder.withStandardReturnVariable().build();
     }
 
-    private static CapabilityDefinition passThroughCapability(String name, String description, String tag) {
+    private static CapabilityDefinition agentCapability(String name, String description, String tag) {
         return CapabilityDefinition.builder()
                 .name(name)
                 .description(description)
                 .addTag(tag)
                 .addInput("input")
                 .addOutput("output")
+                .addRequiredContext(WorkflowPresetInfrastructure.MESSAGE_VARIABLE)
                 .build();
     }
 
@@ -39,22 +42,27 @@ final class DefaultConfigurationDefinitions {
         return builder.build();
     }
 
-    private static WorkflowDefinition chatProfile(
-            String id, String name, String shortDescription, String emoji) {
+    private static WorkflowDefinition agentPreset(
+            String id, String name, String shortDescription, String emoji, String... searchKeywords) {
         return build(WorkflowBuilder.create(name)
                 .id(id)
+                .enabled(true)
+                .isDefault(true)
                 .role(name)
                 .shortDescription(shortDescription)
                 .emoji(emoji)
-                .designer(agentDesigner(id, name.toLowerCase()))
+                .designer(agentDesigner(searchKeywords))
                 .queue(id)
                 .workflowType("olo")
                 .runAgain(true)
                 .version("1.0.0")
-                .capability(passThroughCapability(name, shortDescription, id))
-                .inputNode("input")
-                .outputNode("output")
-                .connect("input", "output")
+                .executionModel(ExecutionModel.INLINE)
+                .capability(agentCapability(name, shortDescription, id))
+                .withMessageContract()
+                .defaultLocalModelInfrastructure()
+                .presetPlannerPrompts(id)
+                .presetPlannerContext(id)
+                .agentCanvasPipeline(id)
                 .metadata("description", shortDescription)
                 .metadata("role", id));
     }
@@ -63,6 +71,8 @@ final class DefaultConfigurationDefinitions {
         String description = "Autonomous tool-using agent";
         return build(WorkflowBuilder.create("Agent")
                 .id("agent")
+                .enabled(true)
+                .isDefault(true)
                 .role("Agent")
                 .shortDescription(description)
                 .emoji("🤖")
@@ -80,36 +90,59 @@ final class DefaultConfigurationDefinitions {
                 .runAgain(true)
                 .version("1.0.0")
                 .agentWorkflowRuntime()
-                .capability(passThroughCapability("Agent", description, "agent"))
-                .metadata("description", description)
+                .capability(agentCapability("Agent", description, "agent"))
+                .withMessageContract()
+                .defaultLocalModelInfrastructure()
+                .agentPlannerPrompts()
                 .agentPlannerMetadata()
+                .agentPlannerContext()
                 .agentParameters()
                 .agentAvailableAgents()
                 .agentDelegation()
-                .inputNode("input")
-                .outputNode("output")
-                .connect("input", "output"));
+                .childWorkflow(ChildWorkflowDefinition.builder()
+                        .workflowId("planner")
+                        .workflowVersion("1.0.0")
+                        .build())
+                .childWorkflow(ChildWorkflowDefinition.builder()
+                        .workflowId("fast")
+                        .workflowVersion("1.0.0")
+                        .build())
+                .childWorkflow(ChildWorkflowDefinition.builder()
+                        .workflowId("detailed")
+                        .workflowVersion("1.0.0")
+                        .build())
+                .childWorkflow(ChildWorkflowDefinition.builder()
+                        .workflowId("reviewer")
+                        .workflowVersion("1.0.0")
+                        .build())
+                .agentCanvasPipeline("agent")
+                .metadata("description", description));
     }
 
     static WorkflowDefinition architect() {
-        return chatProfile(
-                "architect",
-                "Architect",
-                "System design and architecture guidance",
-                "🏗️");
+        return build(WorkflowBuilder.from(agentPreset(
+                        "architect",
+                        "Architect",
+                        "System design and architecture guidance",
+                        "🏗️",
+                        "architect"))
+                .enabled(false));
     }
 
     static WorkflowDefinition ask() {
-        return chatProfile("ask", "Ask", "Direct questions and clear answers", "❓");
+        return agentPreset("ask", "Ask", "Direct questions and clear answers", "❓", "ask");
     }
 
     static WorkflowDefinition debug() {
         String description = "Verbose output for troubleshooting";
         return build(WorkflowBuilder.create("Debug")
                 .id("debug")
+                .enabled(true)
+                .isDefault(true)
                 .role("Debug")
                 .shortDescription(description)
                 .emoji("🐛")
+                .designer(agentDesigner("debug"))
                 .queue("debug")
                 .workflowType("olo")
                 .runAgain(true)
@@ -117,40 +150,47 @@ final class DefaultConfigurationDefinitions {
                 .executionModel(ExecutionModel.INLINE)
                 .debuggable()
                 .replayable()
-                .capability(passThroughCapability("Debug", description, "debug"))
-                .inputNode("input")
-                .outputNode("output")
-                .connect("input", "output")
+                .capability(agentCapability("Debug", description, "debug"))
+                .withMessageContract()
+                .defaultLocalModelInfrastructure()
+                .presetPlannerPrompts("debug")
+                .presetPlannerContext("debug")
+                .agentCanvasPipeline("debug")
                 .metadata("description", description)
                 .metadata("role", "debug"));
     }
 
     static WorkflowDefinition detailed() {
-        return chatProfile("detailed", "Detailed", "Thorough, in-depth explanations", "📖");
+        return agentPreset("detailed", "Detailed", "Thorough, in-depth explanations", "📖", "detailed");
     }
 
     static WorkflowDefinition fast() {
-        return chatProfile("fast", "Fast", "Quick, concise responses", "⚡");
+        return agentPreset("fast", "Fast", "Quick, concise responses", "⚡", "fast");
     }
 
     static WorkflowDefinition planner() {
-        return chatProfile("planner", "Planner", "Structured plans and task breakdowns", "📋");
+        return agentPreset(
+                "planner",
+                "Planner",
+                "Structured plans and task breakdowns",
+                "📋",
+                "planner");
     }
 
     static WorkflowDefinition reviewer() {
-        return chatProfile("reviewer", "Reviewer", "Review code and content critically", "🔍");
+        return agentPreset("reviewer", "Reviewer", "Review code and content critically", "🔍", "reviewer");
     }
 
     static WorkflowDefinition strict() {
-        return chatProfile("strict", "Strict", "Precise, rule-following responses", "📏");
+        return agentPreset("strict", "Strict", "Precise, rule-following responses", "📏", "strict");
     }
 
     static WorkflowDefinition summary() {
-        return chatProfile("summary", "Summary", "Brief summaries and key points", "📝");
+        return agentPreset("summary", "Summary", "Brief summaries and key points", "📝", "summary");
     }
 
     static WorkflowDefinition teacher() {
-        return chatProfile("teacher", "Teacher", "Learn concepts step by step", "🎓");
+        return agentPreset("teacher", "Teacher", "Learn concepts step by step", "🎓", "teacher");
     }
 
     /** Minimal echo task-queue preset ({@code workflow.json} on disk, id {@code minimal-echo}). */
@@ -158,6 +198,8 @@ final class DefaultConfigurationDefinitions {
         String description = "Smallest valid OLO workflow: passes input through to output.";
         return build(WorkflowBuilder.create("Minimal Echo")
                 .id("minimal-echo")
+                .enabled(true)
+                .isDefault(true)
                 .role("Echo")
                 .shortDescription("Minimal passthrough workflow")
                 .emoji("💬")
@@ -165,15 +207,19 @@ final class DefaultConfigurationDefinitions {
                 .workflowType("olo")
                 .runAgain(true)
                 .version("1.0.0")
+                .executionModel(ExecutionModel.INLINE)
                 .capability(CapabilityDefinition.builder()
                         .name("Minimal Echo")
                         .description(description)
                         .addInput("input")
                         .addOutput("output")
+                        .addRequiredContext(WorkflowPresetInfrastructure.MESSAGE_VARIABLE)
                         .build())
-                .inputNode("input")
-                .outputNode("output")
-                .connect("input", "output")
+                .withMessageContract()
+                .defaultLocalModelInfrastructure()
+                .presetPlannerPrompts("minimal-echo")
+                .presetPlannerContext("minimal-echo")
+                .agentCanvasPipeline("minimal-echo")
                 .metadata("description", description));
     }
 }

@@ -1,6 +1,7 @@
 package org.olo.definition.serializer;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.json.JsonWriteFeature;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -43,6 +44,8 @@ public final class JacksonWorkflowMapper {
         mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         mapper.enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
+        // Preserve emoji and other non-ASCII as UTF-8 literals (not \\uD83C\\uDFD7-style escapes).
+        mapper.configure(JsonWriteFeature.ESCAPE_NON_ASCII.mappedFeature(), false);
         return mapper;
     }
 }

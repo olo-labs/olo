@@ -13,6 +13,7 @@ import org.olo.spi.runtime.RuntimeCapability;
 import org.olo.definition.runtime.WorkflowRuntimeDefinition;
 import org.olo.definition.tool.ToolDefinition;
 import org.olo.definition.model.ModelProviderDefinition;
+import org.olo.definition.planner.WorkflowPlannerPromptDefinition;
 import org.olo.definition.model.ModelRoutingDefinition;
 import org.olo.definition.human.HumanApprovalDefinition;
 import org.olo.definition.input.WorkflowInputDefinition;
@@ -29,6 +30,7 @@ import org.olo.definition.planner.AgentAvailableAgents;
 import org.olo.definition.planner.AgentReferenceDefinition;
 import org.olo.definition.planner.WorkflowPlannerMetadata;
 import org.olo.definition.state.StateFieldDefinition;
+import org.olo.definition.preset.WorkflowPresetInfrastructure;
 import org.olo.definition.variable.VariableDefinition;
 
 import java.util.ArrayList;
@@ -56,6 +58,8 @@ public final class WorkflowBuilder {
     private final List<VariableDefinition> variables = new ArrayList<>();
     private final List<ModelProviderDefinition> modelProviders = new ArrayList<>();
     private final List<ModelRoutingDefinition> modelRouting = new ArrayList<>();
+    private final List<WorkflowPlannerPromptDefinition> prompts = new ArrayList<>();
+    private String defaultPromptId;
     private final List<ExtensionDefinition> extensions = new ArrayList<>();
     private final List<ToolDefinition> tools = new ArrayList<>();
     private final List<AgentDefinition> agents = new ArrayList<>();
@@ -86,6 +90,8 @@ public final class WorkflowBuilder {
         Objects.requireNonNull(existing, "existing workflow is required");
         WorkflowBuilder builder = new WorkflowBuilder();
         builder.delegate.id(existing.getId());
+        builder.delegate.enabled(existing.isEnabled());
+        builder.delegate.isDefault(existing.isDefault());
         builder.delegate.label(existing.getLabel());
         builder.delegate.role(existing.getRole());
         builder.delegate.shortDescription(existing.getShortDescription());
@@ -110,6 +116,8 @@ public final class WorkflowBuilder {
         builder.variables.addAll(existing.getVariables());
         builder.modelProviders.addAll(existing.getModelProviders());
         builder.modelRouting.addAll(existing.getModelRouting());
+        builder.prompts.addAll(existing.getPrompts());
+        builder.defaultPromptId = existing.getDefaultPromptId();
         builder.extensions.addAll(existing.getExtensions());
         builder.tools.addAll(existing.getTools());
         builder.agents.addAll(existing.getAgents());
@@ -134,6 +142,16 @@ public final class WorkflowBuilder {
 
     public WorkflowBuilder id(String id) {
         delegate.id(id);
+        return this;
+    }
+
+    public WorkflowBuilder enabled(Boolean enabled) {
+        delegate.enabled(enabled);
+        return this;
+    }
+
+    public WorkflowBuilder isDefault(Boolean isDefault) {
+        delegate.isDefault(isDefault);
         return this;
     }
 
@@ -202,20 +220,45 @@ public final class WorkflowBuilder {
         return this;
     }
 
-    public WorkflowBuilder inputNode(String id) {
+    public WorkflowBuilder startNode(String id) {
         return addNode(NodeDefinition.builder()
                 .id(id)
-                .type(NodeType.INPUT)
+                .type(NodeType.START)
                 .addPort(defaultPort("out", "out", PortDirection.OUTPUT))
                 .build());
     }
 
-    public WorkflowBuilder outputNode(String id) {
+    /** START node that maps external {@code message} input into the workflow graph. */
+    public WorkflowBuilder startNodeWithMessageInput(String id) {
         return addNode(NodeDefinition.builder()
                 .id(id)
-                .type(NodeType.OUTPUT)
+                .type(NodeType.START)
+                .addRead("input." + WorkflowPresetInfrastructure.MESSAGE_VARIABLE)
+                .addPort(defaultPort("out", "out", PortDirection.OUTPUT))
+                .putConfiguration(
+                        "inputVariableMappings",
+                        List.of(WorkflowPresetInfrastructure.MESSAGE_VARIABLE))
+                .build());
+    }
+
+    public WorkflowBuilder endNode(String id) {
+        return addNode(NodeDefinition.builder()
+                .id(id)
+                .type(NodeType.END)
                 .addPort(defaultPort("in", "in", PortDirection.INPUT))
                 .build());
+    }
+
+    /** @deprecated use {@link #startNode(String)} */
+    @Deprecated
+    public WorkflowBuilder inputNode(String id) {
+        return startNode(id);
+    }
+
+    /** @deprecated use {@link #endNode(String)} */
+    @Deprecated
+    public WorkflowBuilder outputNode(String id) {
+        return endNode(id);
     }
 
     public WorkflowBuilder modelNode(String id) {
@@ -367,6 +410,89 @@ public final class WorkflowBuilder {
         return this;
     }
 
+    public WorkflowBuilder plannerPrompt(WorkflowPlannerPromptDefinition prompt) {
+        Objects.requireNonNull(prompt, "prompt is required");
+        prompts.add(prompt);
+        return this;
+    }
+
+    public WorkflowBuilder defaultPromptId(String defaultPromptId) {
+        this.defaultPromptId = defaultPromptId;
+        return this;
+    }
+
+    /** Default workflow-level planner prompts for the agent preset. */
+    public WorkflowBuilder agentPlannerPrompts() {
+        plannerPrompt(WorkflowPlannerPromptDefinition.agentDefault());
+        defaultPromptId(WorkflowPlannerPromptDefinition.DEFAULT_PROMPT_ID);
+        return this;
+    }
+
+    /** Default planner prompt for a workflow preset id. */
+    public WorkflowBuilder presetPlannerPrompts(String presetId) {
+        plannerPrompt(WorkflowPlannerPromptDefinition.forPreset(presetId));
+        defaultPromptId(WorkflowPlannerPromptDefinition.DEFAULT_PROMPT_ID);
+        return this;
+    }
+
+    public WorkflowBuilder withMessageInput() {
+        if (!inputs.containsKey(WorkflowPresetInfrastructure.MESSAGE_VARIABLE)) {
+            input(
+                    WorkflowPresetInfrastructure.MESSAGE_VARIABLE,
+                    WorkflowInputDefinition.builder()
+                            .schema("string")
+                            .required(true)
+                            .build());
+        }
+        return this;
+    }
+
+    public WorkflowBuilder withMessageVariable() {
+        boolean hasMessage = variables.stream()
+                .anyMatch(variable -> WorkflowPresetInfrastructure.MESSAGE_VARIABLE.equals(variable.getName()));
+        if (!hasMessage) {
+            variable(WorkflowPresetInfrastructure.messageVariable());
+        }
+        return this;
+    }
+
+    public WorkflowBuilder withMessageContract() {
+        return withMessageInput().withMessageVariable();
+    }
+
+    public WorkflowBuilder defaultLocalModelInfrastructure() {
+        if (modelProviders.isEmpty()) {
+            modelProvider(WorkflowPresetInfrastructure.defaultLocalModelProvider());
+        }
+        if (modelRouting.isEmpty()) {
+            modelRouting(WorkflowPresetInfrastructure.defaultModelRouting());
+        }
+        return this;
+    }
+
+    public WorkflowBuilder presetPlannerContext(String presetId) {
+        metadata(
+                org.olo.definition.planner.PlannerContextDefinition.METADATA_KEY,
+                org.olo.definition.planner.PlannerContextDefinition.presetDefaults(presetId));
+        return this;
+    }
+
+    /**
+     * Canonical Studio canvas: START → AGENT (self workflow) → END with message input mapping.
+     */
+    public WorkflowBuilder agentCanvasPipeline(String workflowId) {
+        return startNodeWithMessageInput("start")
+                .agentNode(
+                        "agent",
+                        WorkflowReferenceDefinition.builder()
+                                .workflowId(workflowId)
+                                .version("1.0.0")
+                                .build())
+                .endNode("end")
+                .connect("start", "out", "agent", "in")
+                .connect("agent", "out", "end", "in");
+    }
+
     public WorkflowBuilder extension(ExtensionDefinition extension) {
         Objects.requireNonNull(extension, "extension is required");
         extensions.add(extension);
@@ -396,6 +522,7 @@ public final class WorkflowBuilder {
                     .type("string")
                     .description("Workflow return message returned to the caller")
                     .required(false)
+                    .scope(org.olo.definition.variable.VariableScope.LOCAL)
                     .defaultValue(null)
                     .metadata(Map.of("role", RETURN_VARIABLE_ROLE))
                     .build());
@@ -450,6 +577,14 @@ public final class WorkflowBuilder {
     /** Planner routing metadata ({@link WorkflowPlannerMetadata}). */
     public WorkflowBuilder agentPlannerMetadata() {
         WorkflowPlannerMetadata.agentDefaults().forEach(this::metadata);
+        return this;
+    }
+
+    /** Default planner context ({@link org.olo.definition.planner.PlannerContextDefinition}). */
+    public WorkflowBuilder agentPlannerContext() {
+        metadata(
+                org.olo.definition.planner.PlannerContextDefinition.METADATA_KEY,
+                org.olo.definition.planner.PlannerContextDefinition.agentDefaults());
         return this;
     }
 
@@ -530,6 +665,8 @@ public final class WorkflowBuilder {
         delegate.variables(List.copyOf(variables));
         delegate.modelProviders(List.copyOf(modelProviders));
         delegate.modelRouting(List.copyOf(modelRouting));
+        delegate.prompts(List.copyOf(prompts));
+        delegate.defaultPromptId(defaultPromptId);
         delegate.extensions(List.copyOf(extensions));
         delegate.tools(List.copyOf(tools));
         delegate.agents(List.copyOf(agents));

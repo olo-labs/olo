@@ -25,10 +25,10 @@ public final class ValidationTestFixtures {
 
     public static NodeDefinition.Builder node(String id, NodeType type) {
         NodeDefinition.Builder builder = NodeDefinition.builder().id(id).type(type);
-        if (type != NodeType.INPUT) {
+        if (type != NodeType.START) {
             builder.addPort(PortDefinition.inputPort("in", "any"));
         }
-        if (type != NodeType.OUTPUT) {
+        if (type != NodeType.END) {
             builder.addPort(PortDefinition.outputPort("out", "any"));
         }
         return builder;

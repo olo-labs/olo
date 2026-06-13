@@ -23,6 +23,7 @@ import org.olo.definition.extension.ExtensionDefinition;
 import org.olo.definition.hook.HookDefinition;
 import org.olo.definition.tool.ToolDefinition;
 import org.olo.definition.model.ModelProviderDefinition;
+import org.olo.definition.planner.WorkflowPlannerPromptDefinition;
 import org.olo.definition.model.ModelRoutingDefinition;
 import org.olo.definition.input.WorkflowInputDefinition;
 import org.olo.definition.node.NodeDefinition;
@@ -46,6 +47,8 @@ import java.util.Objects;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonPropertyOrder({
     "id",
+    "enabled",
+    "isDefault",
     "label",
     "role",
     "shortDescription",
@@ -74,12 +77,16 @@ import java.util.Objects;
     "hooks",
     "modelProviders",
     "modelRouting",
+    "prompts",
+    "defaultPromptId",
     "extensions",
     "metadata"
 })
 public final class WorkflowDefinition {
 
     private final String id;
+    private final Boolean enabled;
+    private final Boolean isDefault;
     private final String label;
     private final String role;
     private final String shortDescription;
@@ -102,6 +109,8 @@ public final class WorkflowDefinition {
     private final List<VariableDefinition> variables;
     private final List<ModelProviderDefinition> modelProviders;
     private final List<ModelRoutingDefinition> modelRouting;
+    private final List<WorkflowPlannerPromptDefinition> prompts;
+    private final String defaultPromptId;
     private final List<ExtensionDefinition> extensions;
     private final Map<String, Object> metadata;
     private final CapabilityDefinition capability;
@@ -113,6 +122,8 @@ public final class WorkflowDefinition {
 
     private WorkflowDefinition(Builder builder) {
         this.id = builder.id;
+        this.enabled = builder.enabled;
+        this.isDefault = builder.isDefault;
         this.label = builder.label;
         this.role = builder.role;
         this.shortDescription = builder.shortDescription;
@@ -141,6 +152,8 @@ public final class WorkflowDefinition {
         this.variables = builder.variables == null ? List.of() : List.copyOf(builder.variables);
         this.modelProviders = builder.modelProviders == null ? List.of() : List.copyOf(builder.modelProviders);
         this.modelRouting = builder.modelRouting == null ? List.of() : List.copyOf(builder.modelRouting);
+        this.prompts = builder.prompts == null ? List.of() : List.copyOf(builder.prompts);
+        this.defaultPromptId = builder.defaultPromptId;
         this.extensions = builder.extensions == null ? List.of() : List.copyOf(builder.extensions);
         this.metadata = builder.metadata == null
                 ? Map.of()
@@ -153,6 +166,21 @@ public final class WorkflowDefinition {
 
     public String getId() {
         return id;
+    }
+
+    /** When false, the preset is hidden from Studio and runtime dispatch. Defaults to true when unset. */
+    @JsonProperty("enabled")
+    public Boolean isEnabled() {
+        return enabled;
+    }
+
+    /**
+     * When true, this version is the default workspace for {@link #getId()} when a requested version
+     * is not available at runtime.
+     */
+    @JsonProperty("isDefault")
+    public Boolean isDefault() {
+        return isDefault;
     }
 
     /**
@@ -278,6 +306,14 @@ public final class WorkflowDefinition {
         return modelRouting;
     }
 
+    public List<WorkflowPlannerPromptDefinition> getPrompts() {
+        return prompts;
+    }
+
+    public String getDefaultPromptId() {
+        return defaultPromptId;
+    }
+
     public List<ExtensionDefinition> getExtensions() {
         return extensions;
     }
@@ -347,6 +383,8 @@ public final class WorkflowDefinition {
             return false;
         }
         return Objects.equals(id, that.id)
+                && Objects.equals(enabled, that.enabled)
+                && Objects.equals(isDefault, that.isDefault)
                 && Objects.equals(label, that.label)
                 && Objects.equals(role, that.role)
                 && Objects.equals(shortDescription, that.shortDescription)
@@ -369,6 +407,8 @@ public final class WorkflowDefinition {
                 && Objects.equals(variables, that.variables)
                 && Objects.equals(modelProviders, that.modelProviders)
                 && Objects.equals(modelRouting, that.modelRouting)
+                && Objects.equals(prompts, that.prompts)
+                && Objects.equals(defaultPromptId, that.defaultPromptId)
                 && Objects.equals(extensions, that.extensions)
                 && Objects.equals(metadata, that.metadata)
                 && Objects.equals(capability, that.capability)
@@ -383,6 +423,7 @@ public final class WorkflowDefinition {
     public int hashCode() {
         return Objects.hash(
                 id,
+                enabled,
                 label,
                 role,
                 shortDescription,
@@ -405,6 +446,8 @@ public final class WorkflowDefinition {
                 variables,
                 modelProviders,
                 modelRouting,
+                prompts,
+                defaultPromptId,
                 extensions,
                 metadata,
                 capability,
@@ -424,6 +467,9 @@ public final class WorkflowDefinition {
     public static final class Builder {
 
         private String id;
+        private Boolean enabled;
+        @JsonProperty("isDefault")
+        private Boolean isDefault;
         private String label;
         private String role;
         private String shortDescription;
@@ -452,6 +498,8 @@ public final class WorkflowDefinition {
         private List<VariableDefinition> variables;
         private List<ModelProviderDefinition> modelProviders;
         private List<ModelRoutingDefinition> modelRouting;
+        private List<WorkflowPlannerPromptDefinition> prompts;
+        private String defaultPromptId;
         private List<ExtensionDefinition> extensions;
         private Map<String, Object> metadata;
         private CapabilityDefinition capability;
@@ -463,6 +511,16 @@ public final class WorkflowDefinition {
 
         public Builder id(String id) {
             this.id = id;
+            return this;
+        }
+
+        public Builder enabled(Boolean enabled) {
+            this.enabled = enabled;
+            return this;
+        }
+
+        public Builder isDefault(Boolean isDefault) {
+            this.isDefault = isDefault;
             return this;
         }
 
@@ -642,6 +700,16 @@ public final class WorkflowDefinition {
 
         public Builder modelRouting(List<ModelRoutingDefinition> modelRouting) {
             this.modelRouting = modelRouting;
+            return this;
+        }
+
+        public Builder prompts(List<WorkflowPlannerPromptDefinition> prompts) {
+            this.prompts = prompts;
+            return this;
+        }
+
+        public Builder defaultPromptId(String defaultPromptId) {
+            this.defaultPromptId = defaultPromptId;
             return this;
         }
 

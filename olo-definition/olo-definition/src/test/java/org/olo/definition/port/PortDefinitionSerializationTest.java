@@ -64,7 +64,7 @@ class PortDefinitionSerializationTest {
                         .addInput("input")
                         .addOutput("output")
                         .build())
-                .addNode(ValidationTestFixtures.node("input", NodeType.INPUT)
+                .addNode(ValidationTestFixtures.node("start", NodeType.START)
                         .addPort(PortDefinition.builder()
                                 .id("out")
                                 .name("out")

@@ -22,7 +22,8 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Scans {@code olo.configuration.dir} for regional subfolders and loads {@link WorkflowDefinition} JSON files.
+ * Scans {@code olo.configuration.dir} for workflow JSON: either regional subfolders or a flat
+ * folder of {@code *.json} files (treated as region {@code current-active}).
  */
 public final class FilesystemConfigurationLoader {
 
@@ -37,6 +38,25 @@ public final class FilesystemConfigurationLoader {
             log.warn("Configuration directory does not exist or is not a directory: {}", rootDir);
             return Map.of();
         }
+        Map<String, RegionalConfigurationSnapshot> regions = loadRegionSubfolders(rootDir);
+        if (!regions.isEmpty()) {
+            return regions;
+        }
+        // Flat layout: workflow JSON files live directly in the folder (e.g. current-active/).
+        try {
+            RegionalConfigurationSnapshot flat = loadRegion("current-active", rootDir);
+            if (flat != null) {
+                log.info("Loaded flat configuration folder as region=current-active workflows={}",
+                        flat.getWorkflows().size());
+                return Map.of("current-active", flat);
+            }
+        } catch (IOException e) {
+            log.warn("Failed to load flat configuration from {}: {}", rootDir, e.getMessage());
+        }
+        return Map.of();
+    }
+
+    private static Map<String, RegionalConfigurationSnapshot> loadRegionSubfolders(Path rootDir) {
         Map<String, RegionalConfigurationSnapshot> out = new LinkedHashMap<>();
         try (Stream<Path> children = Files.list(rootDir)) {
             children.filter(Files::isDirectory)

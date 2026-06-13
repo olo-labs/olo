@@ -27,6 +27,7 @@ public final class VariableDefinition {
     private final Object defaultValue;
     private final String description;
     private final boolean required;
+    private final VariableScope scope;
     private final Map<String, Object> metadata;
 
     private VariableDefinition(Builder builder) {
@@ -35,6 +36,7 @@ public final class VariableDefinition {
         this.defaultValue = builder.defaultValue;
         this.description = builder.description;
         this.required = builder.required;
+        this.scope = builder.scope == null ? VariableScope.LOCAL : builder.scope;
         this.metadata = builder.metadata == null
                 ? Map.of()
                 : Collections.unmodifiableMap(new LinkedHashMap<>(builder.metadata));
@@ -64,6 +66,10 @@ public final class VariableDefinition {
         return required;
     }
 
+    public VariableScope getScope() {
+        return scope;
+    }
+
     public Map<String, Object> getMetadata() {
         return metadata;
     }
@@ -81,12 +87,13 @@ public final class VariableDefinition {
                 && Objects.equals(type, that.type)
                 && Objects.equals(defaultValue, that.defaultValue)
                 && Objects.equals(description, that.description)
+                && scope == that.scope
                 && Objects.equals(metadata, that.metadata);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, type, defaultValue, description, required, metadata);
+        return Objects.hash(name, type, defaultValue, description, required, scope, metadata);
     }
 
     @JsonPOJOBuilder(withPrefix = "")
@@ -97,6 +104,7 @@ public final class VariableDefinition {
         private Object defaultValue;
         private String description;
         private boolean required;
+        private VariableScope scope;
         private Map<String, Object> metadata;
 
         public Builder name(String name) {
@@ -121,6 +129,11 @@ public final class VariableDefinition {
 
         public Builder required(boolean required) {
             this.required = required;
+            return this;
+        }
+
+        public Builder scope(VariableScope scope) {
+            this.scope = scope;
             return this;
         }
 

@@ -1,12 +1,14 @@
 {
   "id" : "strict",
+  "enabled" : true,
+  "isDefault" : true,
   "label" : "Strict",
   "role" : "Strict",
   "shortDescription" : "Precise, rule-following responses",
   "emoji" : "📏",
   "designer" : {
     "paletteGroup" : "Agents",
-    "searchKeywords" : [ "strict", "strict" ],
+    "searchKeywords" : [ "strict" ],
     "resizable" : true,
     "draggable" : true
   },
@@ -24,18 +26,24 @@
     "required_inputs" : [ "input" ],
     "required_outputs" : [ "output" ],
     "tool_requirements" : [ ],
-    "required_context" : [ ]
+    "required_context" : [ "message" ]
   },
   "runtime" : {
     "contractVersion" : "1.0",
     "executionModel" : "INLINE"
   },
-  "inputs" : { },
+  "inputs" : {
+    "message" : {
+      "schema" : "string",
+      "required" : true,
+      "populateState" : true
+    }
+  },
   "state" : { },
   "parameters" : { },
   "nodes" : [ {
-    "id" : "input",
-    "type" : "INPUT",
+    "id" : "start",
+    "type" : "START",
     "ports" : [ {
       "id" : "out",
       "name" : "out",
@@ -47,12 +55,52 @@
         "position" : "RIGHT"
       }
     } ],
+    "reads" : [ "input.message" ],
+    "writes" : [ ],
+    "configuration" : {
+      "inputVariableMappings" : [ "message" ]
+    }
+  }, {
+    "id" : "agent",
+    "type" : "AGENT",
+    "ports" : [ {
+      "id" : "in",
+      "name" : "in",
+      "schema" : "any",
+      "direction" : "INPUT",
+      "required" : false,
+      "minConnections" : 0,
+      "ui" : {
+        "position" : "LEFT"
+      }
+    }, {
+      "id" : "out",
+      "name" : "out",
+      "schema" : "any",
+      "direction" : "OUTPUT",
+      "required" : false,
+      "minConnections" : 0,
+      "ui" : {
+        "position" : "RIGHT"
+      }
+    } ],
+    "execution" : {
+      "executionKind" : "SUBWORKFLOW",
+      "executionModel" : "CHILD_WORKFLOW",
+      "routers" : [ ],
+      "workflowRef" : {
+        "workflowId" : "strict",
+        "version" : "1.0.0",
+        "inputMapping" : { },
+        "outputMapping" : { }
+      }
+    },
     "reads" : [ ],
     "writes" : [ ],
     "configuration" : { }
   }, {
-    "id" : "output",
-    "type" : "OUTPUT",
+    "id" : "end",
+    "type" : "END",
     "ports" : [ {
       "id" : "in",
       "name" : "in",
@@ -69,14 +117,29 @@
     "configuration" : { }
   } ],
   "edges" : [ {
-    "sourceNodeId" : "input",
-    "targetNodeId" : "output"
+    "sourceNodeId" : "start",
+    "sourcePortId" : "out",
+    "targetNodeId" : "agent",
+    "targetPortId" : "in"
+  }, {
+    "sourceNodeId" : "agent",
+    "sourcePortId" : "out",
+    "targetNodeId" : "end",
+    "targetPortId" : "in"
   } ],
   "variables" : [ {
+    "name" : "message",
+    "type" : "string",
+    "description" : "",
+    "required" : true,
+    "scope" : "READONLY_EXTERNAL",
+    "metadata" : { }
+  }, {
     "name" : "ReturnValue",
     "type" : "string",
     "description" : "Workflow return message returned to the caller",
     "required" : false,
+    "scope" : "LOCAL",
     "metadata" : {
       "role" : "return"
     }
@@ -84,12 +147,37 @@
   "tools" : [ ],
   "agents" : [ ],
   "hooks" : [ ],
-  "modelProviders" : [ ],
-  "modelRouting" : [ ],
+  "modelProviders" : [ {
+    "id" : "model-provider",
+    "provider" : "local",
+    "model" : "llama3.2:latest",
+    "configuration" : {
+      "baseUrl" : "http://localhost:51435"
+    }
+  } ],
+  "modelRouting" : [ {
+    "id" : "default-routing",
+    "defaultProviderId" : "model-provider",
+    "rules" : [ ],
+    "metadata" : { }
+  } ],
+  "prompts" : [ {
+    "id" : "default-prompt",
+    "name" : "Default strict prompt",
+    "promptTemplate" : "You follow rules precisely and avoid speculation.\n\nAddress {message} with exact, constraint-aware reasoning."
+  } ],
+  "defaultPromptId" : "default-prompt",
   "extensions" : [ ],
   "metadata" : {
+    "returnVariable" : "ReturnValue",
     "role" : "strict",
-    "description" : "Precise, rule-following responses",
-    "returnVariable" : "ReturnValue"
+    "plannerContext" : {
+      "injectAgents" : false,
+      "selectedAgents" : [ ],
+      "selectedTools" : [ ],
+      "selectedVariables" : [ "message" ],
+      "injectCapabilities" : false
+    },
+    "description" : "Precise, rule-following responses"
   }
 }

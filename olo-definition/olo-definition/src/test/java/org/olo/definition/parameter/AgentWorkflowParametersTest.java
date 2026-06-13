@@ -133,7 +133,7 @@ class AgentWorkflowParametersTest {
                 .isEqualTo(WorkflowPlannerMetadata.PLANNING_STRATEGY_REACT);
         assertThat(workflow.getMetadata().get(WorkflowPlannerMetadata.AGENT_SELECTION_STRATEGY))
                 .isEqualTo(WorkflowPlannerMetadata.AGENT_SELECTION_STRATEGY_DYNAMIC);
-        assertThat(workflow.getChildWorkflows()).isEmpty();
+        assertThat(workflow.getChildWorkflows()).hasSize(4);
         assertThat(workflow.getAvailableAgents()).isEqualTo(AgentAvailableAgents.agentPresetDefaults());
         assertThat(workflow.getRuntime().getDelegation()).isEqualTo(AgentDelegationPolicy.agentPresetDefaults());
         assertThat(workflow.getTools()).isEmpty();

@@ -146,6 +146,9 @@ public final class WorkflowValidator {
             } else if (!variableNames.add(variable.getName())) {
                 errors.add("duplicate variable name: " + variable.getName());
             }
+            if (variable.getScope() == null) {
+                errors.add("variable scope is required for: " + variable.getName());
+            }
         }
 
         Set<String> providerIds = new HashSet<>();

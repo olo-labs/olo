@@ -138,4 +138,21 @@ class JsonWorkflowSerializerTest {
 
     assertThat(workflow.getLabel()).isEqualTo("Agent");
   }
+
+  @Test
+  void serializesEmojiAsUtf8Literal() throws Exception {
+    WorkflowDefinition original =
+        WorkflowBuilder.create("Architect")
+            .id("architect")
+            .emoji("🏗️")
+            .capability(ValidationTestFixtures.minimalCapability())
+            .build();
+
+    String json = serializer.serialize(original);
+    assertThat(json).contains("\"emoji\" : \"🏗️\"");
+    assertThat(json).doesNotContain("\\uD83C");
+
+    WorkflowDefinition restored = serializer.deserialize(json);
+    assertThat(restored.getEmoji()).isEqualTo("🏗️");
+  }
 }

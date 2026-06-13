@@ -1,5 +1,7 @@
 {
   "id" : "agent",
+  "enabled" : true,
+  "isDefault" : true,
   "label" : "Agent",
   "role" : "Agent",
   "shortDescription" : "Autonomous tool-using agent",
@@ -17,7 +19,19 @@
   "queue" : "agent",
   "workflowType" : "olo",
   "runAgain" : true,
-  "childWorkflows" : [ ],
+  "childWorkflows" : [ {
+    "workflowId" : "planner",
+    "workflowVersion" : "1.0.0"
+  }, {
+    "workflowId" : "fast",
+    "workflowVersion" : "1.0.0"
+  }, {
+    "workflowId" : "detailed",
+    "workflowVersion" : "1.0.0"
+  }, {
+    "workflowId" : "reviewer",
+    "workflowVersion" : "1.0.0"
+  } ],
   "availableAgents" : [ {
     "id" : "planner"
   }, {
@@ -34,7 +48,7 @@
     "required_inputs" : [ "input" ],
     "required_outputs" : [ "output" ],
     "tool_requirements" : [ ],
-    "required_context" : [ ]
+    "required_context" : [ "message" ]
   },
   "runtime" : {
     "contractVersion" : "1.0",
@@ -50,41 +64,15 @@
       "memoryScope" : "SHARED"
     }
   },
-  "inputs" : { },
+  "inputs" : {
+    "message" : {
+      "schema" : "string",
+      "required" : true,
+      "populateState" : true
+    }
+  },
   "state" : { },
   "parameters" : {
-    "systemPrompt" : {
-      "type" : "string",
-      "label" : "System Prompt",
-      "description" : "System prompt for the agent",
-      "defaultValue" : "",
-      "required" : false,
-      "ui" : {
-        "widget" : "TEXTAREA",
-        "group" : "Model Settings",
-        "help" : "Optional instructions that shape agent behavior.",
-        "placeholder" : "You are a helpful assistant…",
-        "order" : 0
-      }
-    },
-    "maxIterations" : {
-      "type" : "integer",
-      "label" : "Max Iterations",
-      "description" : "Maximum agent reasoning iterations",
-      "defaultValue" : 10,
-      "required" : false,
-      "validation" : {
-        "minimum" : 1.0,
-        "maximum" : 100.0,
-        "step" : 1.0
-      },
-      "ui" : {
-        "widget" : "NUMBER",
-        "group" : "Model Settings",
-        "help" : "Caps how many planner/tool loops the agent may run.",
-        "order" : 1
-      }
-    },
     "model" : {
       "type" : "string",
       "label" : "Model",
@@ -118,11 +106,43 @@
         "help" : "Higher values increase response creativity.",
         "order" : 3
       }
+    },
+    "systemPrompt" : {
+      "type" : "string",
+      "label" : "System Prompt",
+      "description" : "System prompt for the agent",
+      "defaultValue" : "",
+      "required" : false,
+      "ui" : {
+        "widget" : "TEXTAREA",
+        "group" : "Model Settings",
+        "help" : "Optional instructions that shape agent behavior.",
+        "placeholder" : "You are a helpful assistant…",
+        "order" : 0
+      }
+    },
+    "maxIterations" : {
+      "type" : "integer",
+      "label" : "Max Iterations",
+      "description" : "Maximum agent reasoning iterations",
+      "defaultValue" : 10,
+      "required" : false,
+      "validation" : {
+        "minimum" : 1.0,
+        "maximum" : 100.0,
+        "step" : 1.0
+      },
+      "ui" : {
+        "widget" : "NUMBER",
+        "group" : "Model Settings",
+        "help" : "Caps how many planner/tool loops the agent may run.",
+        "order" : 1
+      }
     }
   },
   "nodes" : [ {
-    "id" : "input",
-    "type" : "INPUT",
+    "id" : "start",
+    "type" : "START",
     "ports" : [ {
       "id" : "out",
       "name" : "out",
@@ -134,12 +154,52 @@
         "position" : "RIGHT"
       }
     } ],
+    "reads" : [ "input.message" ],
+    "writes" : [ ],
+    "configuration" : {
+      "inputVariableMappings" : [ "message" ]
+    }
+  }, {
+    "id" : "agent",
+    "type" : "AGENT",
+    "ports" : [ {
+      "id" : "in",
+      "name" : "in",
+      "schema" : "any",
+      "direction" : "INPUT",
+      "required" : false,
+      "minConnections" : 0,
+      "ui" : {
+        "position" : "LEFT"
+      }
+    }, {
+      "id" : "out",
+      "name" : "out",
+      "schema" : "any",
+      "direction" : "OUTPUT",
+      "required" : false,
+      "minConnections" : 0,
+      "ui" : {
+        "position" : "RIGHT"
+      }
+    } ],
+    "execution" : {
+      "executionKind" : "SUBWORKFLOW",
+      "executionModel" : "CHILD_WORKFLOW",
+      "routers" : [ ],
+      "workflowRef" : {
+        "workflowId" : "agent",
+        "version" : "1.0.0",
+        "inputMapping" : { },
+        "outputMapping" : { }
+      }
+    },
     "reads" : [ ],
     "writes" : [ ],
     "configuration" : { }
   }, {
-    "id" : "output",
-    "type" : "OUTPUT",
+    "id" : "end",
+    "type" : "END",
     "ports" : [ {
       "id" : "in",
       "name" : "in",
@@ -156,14 +216,29 @@
     "configuration" : { }
   } ],
   "edges" : [ {
-    "sourceNodeId" : "input",
-    "targetNodeId" : "output"
+    "sourceNodeId" : "start",
+    "sourcePortId" : "out",
+    "targetNodeId" : "agent",
+    "targetPortId" : "in"
+  }, {
+    "sourceNodeId" : "agent",
+    "sourcePortId" : "out",
+    "targetNodeId" : "end",
+    "targetPortId" : "in"
   } ],
   "variables" : [ {
+    "name" : "message",
+    "type" : "string",
+    "description" : "",
+    "required" : true,
+    "scope" : "READONLY_EXTERNAL",
+    "metadata" : { }
+  }, {
     "name" : "ReturnValue",
     "type" : "string",
     "description" : "Workflow return message returned to the caller",
     "required" : false,
+    "scope" : "LOCAL",
     "metadata" : {
       "role" : "return"
     }
@@ -171,15 +246,40 @@
   "tools" : [ ],
   "agents" : [ ],
   "hooks" : [ ],
-  "modelProviders" : [ ],
-  "modelRouting" : [ ],
+  "modelProviders" : [ {
+    "id" : "model-provider",
+    "provider" : "local",
+    "model" : "llama3.2:latest",
+    "configuration" : {
+      "baseUrl" : "http://localhost:51435"
+    }
+  } ],
+  "modelRouting" : [ {
+    "id" : "default-routing",
+    "defaultProviderId" : "model-provider",
+    "rules" : [ ],
+    "metadata" : { }
+  } ],
+  "prompts" : [ {
+    "id" : "default-prompt",
+    "name" : "Default planner prompt",
+    "promptTemplate" : "You are a research planner.\n\nInvestigate {message}.\n\nUse available capabilities when needed.\nDelegate work when another agent is more suitable."
+  } ],
+  "defaultPromptId" : "default-prompt",
   "extensions" : [ ],
   "metadata" : {
-    "planningStrategy" : "react",
-    "agentType" : "autonomous",
-    "role" : "agent",
     "description" : "Autonomous tool-using agent",
+    "agentType" : "autonomous",
+    "returnVariable" : "ReturnValue",
     "agentSelectionStrategy" : "dynamic",
-    "returnVariable" : "ReturnValue"
+    "role" : "agent",
+    "planningStrategy" : "react",
+    "plannerContext" : {
+      "injectAgents" : true,
+      "selectedAgents" : [ "planner", "reviewer", "architect" ],
+      "selectedTools" : [ ],
+      "selectedVariables" : [ "message" ],
+      "injectCapabilities" : false
+    }
   }
 }

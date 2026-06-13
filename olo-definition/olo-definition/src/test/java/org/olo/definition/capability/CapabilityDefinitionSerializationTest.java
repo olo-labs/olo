@@ -29,6 +29,23 @@ class CapabilityDefinitionSerializationTest {
     }
 
     @Test
+    void deserializesRequiredContext() throws Exception {
+        String yaml = """
+                {
+                  "id": "ctx-cap",
+                  "capability": {
+                    "name": "Example",
+                    "description": "Example capability",
+                    "required_context": ["message"]
+                  }
+                }
+                """;
+
+        WorkflowDefinition workflow = json.deserialize(yaml);
+        assertThat(workflow.getCapability().getRequiredContext()).containsExactly("message");
+    }
+
+    @Test
     void deserializesLegacyInputsAlias() throws Exception {
         String yaml = """
                 {

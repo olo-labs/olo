@@ -188,6 +188,7 @@ public final class CapabilityDefinition {
         private Double latency;
         private Double confidence;
         private List<String> toolRequirements;
+        @JsonProperty("required_context")
         private List<String> requiredContext;
 
         public Builder id(String id) {

@@ -31,7 +31,7 @@ Default port: **7080**. Swagger UI: **http://localhost:7080/swagger-ui.html**
 |-----------|------|
 | **olo** (this repo) | Chat backend: sessions, messages, runs, execution events, UI context, resource upload. |
 | **olo-chat** | React frontend. Calls this backend for REST/SSE/WebSocket. |
-| **olo-configuration** | Regional `WorkflowDefinition` JSON (e.g. `default/ask.json`). Drives chat presets and Temporal task queues. |
+| **olo-configuration** | Active `WorkflowDefinition` JSON in `olo-mono/olo-definition/olo-configuration/current-active/`. Drives chat presets and Temporal task queues. |
 | **Temporal worker** | Separate process. Executes workflows; POSTs run events to `OLO_CHAT_CALLBACK_BASE_URL`. |
 
 The backend is the **source of truth** for chat sessions, messages, run state, and live execution events. Workflow execution happens in Temporal workers; the backend orchestrates starts, signals, and event fan-out to the UI.
@@ -49,7 +49,7 @@ The backend is the **source of truth** for chat sessions, messages, run state, a
 | `queue` | `queue` (typically same as `id`, e.g. `ask`) |
 | `runAgain` | `runAgain` |
 
-Bundled presets under `olo-configuration/default/` include: `ask`, `fast`, `detailed`, `summary`, `debug`, `agent`, `reviewer`, `architect`, `teacher`, `planner`, `strict`, plus `workflow.json` (minimal echo).
+Place workflow JSON in `olo-mono/olo-definition/olo-configuration/current-active/` (copy from `default/` presets if needed). Example presets in `default/`: `ask`, `fast`, `detailed`, `summary`, `debug`, `agent`, `reviewer`, `architect`, `teacher`, `planner`, `strict`, plus `workflow.json` (minimal echo).
 
 There is **no** legacy Redis/kernel profile config or Queue/Pipeline picker API.
 
@@ -78,7 +78,7 @@ or:
 ./gradlew bootRun
 ```
 
-`start.bat` sets `OLO_CONFIGURATION_DIR` to `olo-configuration` in this repo and loads optional `.env` overrides.
+`start.bat` sets `OLO_CONFIGURATION_DIR` to `olo-mono/olo-definition/olo-configuration/current-active` and loads optional `.env` overrides.
 
 ### Environment
 
@@ -87,7 +87,7 @@ Copy `.env.example` to `.env` for local overrides. Key variables:
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `SERVER_PORT` | `7080` | HTTP port |
-| `OLO_CONFIGURATION_DIR` | `olo-configuration` | Regional workflow JSON root |
+| `OLO_CONFIGURATION_DIR` | `../olo-mono/olo-definition/olo-configuration/current-active` | Active workflow JSON folder |
 | `OLO_TEMPORAL_TARGET` | `localhost:7233` | Temporal gRPC target |
 | `OLO_CACHE_HOST` / `OLO_CACHE_PORT` | `localhost` / `46379` | Redis for session persistence |
 | `OLO_CHAT_CALLBACK_BASE_URL` | `http://localhost:7080` | URL workers use to POST run events |

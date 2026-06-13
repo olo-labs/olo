@@ -24,11 +24,11 @@ public enum NodeType {
 
     /** Workflow entry: accepts external or upstream payload. */
 
-    INPUT,
+    START,
 
     /** Workflow exit: returns result to caller or downstream system. */
 
-    OUTPUT,
+    END,
 
 
 

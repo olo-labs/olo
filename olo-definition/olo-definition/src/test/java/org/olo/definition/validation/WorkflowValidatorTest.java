@@ -217,7 +217,7 @@ class WorkflowValidatorTest {
                         .addPort(PortDefinition.outputPort("true", "any"))
                         .addPort(PortDefinition.outputPort("false", "any"))
                         .build())
-                .addNode(ValidationTestFixtures.node("sink", NodeType.OUTPUT).build())
+                .addNode(ValidationTestFixtures.node("sink", NodeType.END).build())
                 .addEdge(EdgeDefinition.builder().sourceNodeId("router").targetNodeId("sink").build())
                 .build();
 
