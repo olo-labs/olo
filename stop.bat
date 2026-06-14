@@ -13,4 +13,4 @@ if !FOUND!==0 (
   echo Backend stopped.
 )
 echo.
-pause
+if not defined NONINTERACTIVE pause
