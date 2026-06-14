@@ -1,8 +1,10 @@
 # Multi-stage build: compile with Gradle, run with JRE
-# Build context: olo repo root (olo-definition includes olo-configuration presets).
+# Build context: olo repo root. Requires olo-mono/olo-spi + olo-annotation (CI checks out olo-mono).
 FROM gradle:8-jdk21 AS builder
 WORKDIR /workspace
 
+COPY olo-mono/olo-spi olo-mono/olo-spi
+COPY olo-mono/olo-annotation olo-mono/olo-annotation
 COPY olo-definition olo-definition
 COPY olo-workflow-input olo-workflow-input
 COPY olo-temporal-sdk olo-temporal-sdk

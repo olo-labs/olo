@@ -5,3 +5,31 @@ plugins {
 rootProject.name = 'olo-mono'
 
 include 'olo-definition'
+
+def resolveOloMonoModule(String module) {
+    for (String candidate : ['olo-mono/' + module, '../olo-mono/' + module, '../../olo-mono/' + module]) {
+        def dir = file(candidate)
+        if (dir.directory) {
+            return dir
+        }
+    }
+    return null
+}
+
+def oloSpiDir = resolveOloMonoModule('olo-spi')
+if (oloSpiDir != null) {
+    includeBuild(oloSpiDir) {
+        dependencySubstitution {
+            substitute module('org.olo:olo-spi') using project(':')
+        }
+    }
+}
+
+def oloAnnotationDir = resolveOloMonoModule('olo-annotation')
+if (oloAnnotationDir != null) {
+    includeBuild(oloAnnotationDir) {
+        dependencySubstitution {
+            substitute module('org.olo:olo-annotation') using project(':')
+        }
+    }
+}

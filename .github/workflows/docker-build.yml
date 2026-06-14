@@ -31,8 +31,18 @@ jobs:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Checkout
+      - name: Checkout olo
         uses: actions/checkout@v4
+
+      - name: Checkout olo-mono (olo-spi, olo-annotation)
+        uses: actions/checkout@v4
+        with:
+          repository: olo-labs/olo-mono
+          path: olo-mono
+          sparse-checkout: |
+            olo-spi
+            olo-annotation
+          sparse-checkout-cone-mode: true
 
       - name: Resolve library version
         id: version
