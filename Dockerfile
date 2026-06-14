@@ -1,5 +1,5 @@
 # Multi-stage build: compile with Gradle, run with JRE
-# Build context: olo repo root (olo-definition, olo-workflow-input, olo-configuration vendored locally).
+# Build context: olo repo root (olo-definition includes olo-configuration presets).
 FROM gradle:8-jdk21 AS builder
 WORKDIR /workspace
 
@@ -20,7 +20,7 @@ RUN adduser -D -h /app appuser
 USER appuser
 
 COPY --from=builder /workspace/build/libs/olo-backend-*.jar app.jar
-COPY olo-configuration /app/olo-configuration
+COPY olo-definition/olo-configuration /app/olo-configuration
 
 ENV OLO_CONFIGURATION_DIR=/app/olo-configuration
 
