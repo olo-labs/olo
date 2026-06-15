@@ -3,8 +3,10 @@
 FROM gradle:8-jdk21 AS builder
 WORKDIR /workspace
 
+COPY olo-mono/gradle olo-mono/gradle
 COPY olo-mono/olo-spi olo-mono/olo-spi
 COPY olo-mono/olo-annotation olo-mono/olo-annotation
+COPY olo-mono/olo-annotation-processor olo-mono/olo-annotation-processor
 COPY olo-definition olo-definition
 COPY olo-workflow-input olo-workflow-input
 COPY olo-temporal-sdk olo-temporal-sdk
@@ -12,7 +14,9 @@ COPY gradle gradle
 COPY gradlew gradlew.bat settings.gradle build.gradle gradle.properties ./
 COPY src src
 
-RUN chmod +x gradlew && ./gradlew bootJar -x test --no-daemon
+RUN chmod +x gradlew olo-mono/publish-libs.sh \
+    && olo-mono/publish-libs.sh \
+    && ./gradlew bootJar -x test --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine

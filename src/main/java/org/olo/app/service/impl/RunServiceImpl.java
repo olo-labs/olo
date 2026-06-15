@@ -72,15 +72,19 @@ public class RunServiceImpl implements RunService {
                 @Override
                 public void onCompleted(String workflowResult) {
                     String correlationId = getCorrelationIdFromRun(runId);
-                    boolean hasResponse = workflowResult != null && !workflowResult.isBlank();
+                    String effectiveResult = workflowResult;
+                    if (effectiveResult == null || effectiveResult.isBlank()) {
+                        effectiveResult = RunServiceImpl.this.getRunResponse(runId);
+                    }
+                    boolean hasResponse = effectiveResult != null && !effectiveResult.isBlank();
                     if (hasResponse) {
                         log.info("[BE SSE] Workflow completed runId={} responseLen={} preview={}", runId,
-                                workflowResult.length(), workflowResult.substring(0, Math.min(80, workflowResult.length())) + (workflowResult.length() > 80 ? "..." : ""));
+                                effectiveResult.length(), effectiveResult.substring(0, Math.min(80, effectiveResult.length())) + (effectiveResult.length() > 80 ? "..." : ""));
                     } else {
                         log.info("[BE SSE] Workflow completed runId={} hasResponse=false", runId);
                     }
                     Map<String, Object> output = hasResponse
-                            ? Map.of("source", "temporal", "response", workflowResult)
+                            ? Map.of("source", "temporal", "response", effectiveResult)
                             : Map.of("source", "temporal");
                     appendEvent(runId, "root", null, "SYSTEM", "COMPLETED",
                             null, output, null,
@@ -211,16 +215,34 @@ public class RunServiceImpl implements RunService {
         return run != null ? run.correlationId : null;
     }
 
-    /** Minimal run status derivation from event stream. Nothing more. */
+    /** Run is completed only after workflow result or Temporal completion — not CONTEXT_READY alone. */
     private static String deriveRunStatus(List<OloExecutionEvent> events) {
         if (events == null || events.isEmpty()) return "running";
         for (OloExecutionEvent e : events) {
             if (e.getStatus() == NodeStatus.FAILED) return "failed";
         }
-        OloExecutionEvent last = events.get(events.size() - 1);
-        if (last.getNodeType() == NodeType.SYSTEM && last.getStatus() == NodeStatus.COMPLETED) return "completed";
-        if (last.getNodeType() == NodeType.HUMAN && last.getStatus() == NodeStatus.WAITING) return "waiting_human";
+        for (int i = events.size() - 1; i >= 0; i--) {
+            OloExecutionEvent e = events.get(i);
+            if (e.getNodeType() == NodeType.HUMAN && e.getStatus() == NodeStatus.WAITING) {
+                return "waiting_human";
+            }
+            if (e.getNodeType() == NodeType.SYSTEM && e.getStatus() == NodeStatus.COMPLETED) {
+                if (isWorkflowFinishedEvent(e)) return "completed";
+            }
+        }
         return "running";
+    }
+
+    private static boolean isWorkflowFinishedEvent(OloExecutionEvent event) {
+        if (event == null || event.getOutput() == null || event.getOutput().isEmpty()) {
+            return false;
+        }
+        Map<String, Object> output = event.getOutput();
+        if ("WORKFLOW_RESULT".equals(output.get("status"))) return true;
+        if ("temporal".equals(output.get("source"))) return true;
+        Map<String, Object> metadata = event.getMetadata();
+        if (metadata != null && "kernel-result".equals(metadata.get("phase"))) return true;
+        return extractResponseFromOutput(output) != null;
     }
 
     @Override
@@ -242,6 +264,15 @@ public class RunServiceImpl implements RunService {
     public String getRunResponse(String runId) {
         List<OloExecutionEvent> events = eventStore.getEvents(runId);
         if (events == null || events.isEmpty()) return null;
+
+        for (int i = events.size() - 1; i >= 0; i--) {
+            OloExecutionEvent e = events.get(i);
+            if (e.getOutput() == null || e.getOutput().isEmpty()) continue;
+            if (!"WORKFLOW_RESULT".equals(e.getOutput().get("status"))) continue;
+            String text = extractResponseFromOutput(e.getOutput());
+            if (text != null) return text;
+        }
+
         for (int i = events.size() - 1; i >= 0; i--) {
             OloExecutionEvent e = events.get(i);
             if (e.getOutput() == null || e.getOutput().isEmpty()) continue;
@@ -250,6 +281,7 @@ public class RunServiceImpl implements RunService {
                 if (text != null) return text;
             }
             if (e.getNodeType() == NodeType.SYSTEM && e.getStatus() == NodeStatus.COMPLETED) {
+                if (isMetadataOnlyWorkflowOutput(e.getOutput())) continue;
                 String text = extractResponseFromOutput(e.getOutput());
                 if (text != null) return text;
             }
@@ -257,22 +289,30 @@ public class RunServiceImpl implements RunService {
         return null;
     }
 
+    private static boolean isMetadataOnlyWorkflowOutput(Map<String, Object> output) {
+        if (output == null || output.isEmpty()) return true;
+        for (String key : output.keySet()) {
+            if (!Set.of("source", "status", "phase", "queue", "graphReady", "variables",
+                    "usedAdminFallback", "returnVariable").contains(key)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static String extractResponseFromOutput(Map<String, Object> output) {
         if (output == null) return null;
-        Object r = output.get("response");
-        if (r instanceof String) {
-            String s = ((String) r).trim();
-            if (!s.isEmpty()) return s;
+        for (String key : List.of("response", "content", "text", "result", "message")) {
+            Object value = output.get(key);
+            if (value instanceof String s) {
+                String trimmed = s.trim();
+                if (!trimmed.isEmpty()) return trimmed;
+            }
         }
-        Object c = output.get("content");
-        if (c instanceof String) {
-            String s = ((String) c).trim();
-            if (!s.isEmpty()) return s;
-        }
-        Object res = output.get("result");
-        if (res instanceof String) {
-            String s = ((String) res).trim();
-            if (!s.isEmpty()) return s;
+        Object returnValue = output.get("returnValue");
+        if (returnValue != null) {
+            String s = String.valueOf(returnValue).trim();
+            if (!s.isEmpty() && !"null".equals(s)) return s;
         }
         return null;
     }

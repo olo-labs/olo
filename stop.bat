@@ -1,5 +1,8 @@
 @echo off
 setlocal enabledelayedexpansion
+
+cd /d "%~dp0"
+
 echo.
 echo Stopping Olo backend (port 7080)...
 set FOUND=0
@@ -12,5 +15,9 @@ if !FOUND!==0 (
 ) else (
   echo Backend stopped.
 )
+
+echo Stopping olo Gradle daemons...
+if exist gradlew.bat call gradlew.bat --stop >nul 2>&1
+
 echo.
 if not defined NONINTERACTIVE pause

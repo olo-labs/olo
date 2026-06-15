@@ -10,6 +10,14 @@ repositories {
     mavenCentral()
 }
 
+def oloMonoRepoScript = ['../olo-mono/gradle/olo-mono-repo.gradle', '../../olo-mono/gradle/olo-mono-repo.gradle']
+        .collect { rootProject.file(it) }
+        .find { it.exists() }
+if (oloMonoRepoScript != null) {
+    apply from: oloMonoRepoScript
+    configureOloMonoRepositories(repositories)
+}
+
 dependencies {
     api 'org.olo:olo-spi:0.1.0-SNAPSHOT'
     api 'org.olo:olo-annotation:0.1.0-SNAPSHOT'
