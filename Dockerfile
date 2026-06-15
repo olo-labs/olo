@@ -11,12 +11,14 @@ COPY olo-workflow-input olo-workflow-input
 COPY olo-temporal-sdk olo-temporal-sdk
 COPY gradle gradle
 COPY gradlew gradlew.bat settings.gradle build.gradle gradle.properties ./
+COPY docker/olo-mono-ci.init.gradle /tmp/olo-mono-ci.init.gradle
 COPY src src
 
 RUN cd olo-mono/olo-spi \
-    && gradle -PoloPublishBuildDir=../build/publish-work/olo-spi publishMavenPublicationToOloMonoRepository -x test --no-daemon \
+    && gradle -I /tmp/olo-mono-ci.init.gradle -PoloPublishBuildDir=../build/publish-work/olo-spi publishMavenPublicationToOloMonoRepository -x test --no-daemon \
+    && test -f ../build/repo/org/olo/olo-spi/0.1.0-SNAPSHOT/maven-metadata.xml \
     && cd ../olo-annotation \
-    && gradle -PoloPublishBuildDir=../build/publish-work/olo-annotation publishMavenPublicationToOloMonoRepository -x test --no-daemon \
+    && gradle -I /tmp/olo-mono-ci.init.gradle -PoloPublishBuildDir=../build/publish-work/olo-annotation publishMavenPublicationToOloMonoRepository -x test --no-daemon \
     && cd /workspace \
     && chmod +x gradlew \
     && ./gradlew bootJar -x test --no-daemon
