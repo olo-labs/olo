@@ -17,6 +17,10 @@ java {
 }
 
 repositories {
+    def oloMonoRepo = layout.projectDirectory.dir('olo-mono/build/repo')
+    if (oloMonoRepo.asFile.directory) {
+        maven { url = oloMonoRepo }
+    }
     mavenCentral()
     mavenLocal()
 }
