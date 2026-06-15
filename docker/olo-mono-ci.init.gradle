@@ -1,10 +1,17 @@
-// Docker CI: ensure olo-spi / olo-annotation resolve libs from olo-mono/build/repo.
-// Each module lives under olo-mono/<module>/ so ../build/repo is the shared local Maven cache.
-allprojects {
+// Docker CI: resolve published olo-spi / olo-annotation from olo-mono/build/repo.
+allprojects { p ->
     repositories {
-        maven {
-            name = 'oloMono'
-            url = layout.projectDirectory.dir('../build/repo')
+        def repo = [
+            p.rootProject.file('olo-mono/build/repo'),
+            p.file('../../olo-mono/build/repo'),
+            p.file('../olo-mono/build/repo'),
+            p.layout.projectDirectory.dir('../build/repo').asFile,
+        ].find { it.directory }
+        if (repo != null) {
+            maven {
+                name = 'oloMono'
+                url = repo
+            }
         }
         mavenCentral()
         mavenLocal()

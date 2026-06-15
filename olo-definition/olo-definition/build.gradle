@@ -8,6 +8,14 @@ description = 'Serializable workflow graph definitions for OLO AI orchestration'
 repositories {
     mavenLocal()
     mavenCentral()
+    def oloMonoRepo = [rootProject.file('../olo-mono/build/repo'), rootProject.file('../../olo-mono/build/repo')]
+            .find { it.directory }
+    if (oloMonoRepo != null) {
+        maven {
+            name = 'oloMono'
+            url = oloMonoRepo
+        }
+    }
 }
 
 def oloMonoRepoScript = ['../olo-mono/gradle/olo-mono-repo.gradle', '../../olo-mono/gradle/olo-mono-repo.gradle']

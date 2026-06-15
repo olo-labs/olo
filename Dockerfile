@@ -21,7 +21,7 @@ RUN cd olo-mono/olo-spi \
     && gradle -I /tmp/olo-mono-ci.init.gradle -PoloPublishBuildDir=../build/publish-work/olo-annotation publishMavenPublicationToOloMonoRepository -x test --no-daemon \
     && cd /workspace \
     && chmod +x gradlew \
-    && ./gradlew bootJar -x test --no-daemon
+    && ./gradlew -I /tmp/olo-mono-ci.init.gradle bootJar -x test --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
