@@ -1,12 +1,11 @@
 # Multi-stage build: compile with Gradle, run with JRE
-# Build context: olo repo root. Requires olo-mono/olo-spi + olo-annotation (CI checks out olo-mono).
+# Build context: olo repo root. CI sparse-checkouts olo-mono/gradle, olo-spi, olo-annotation.
 FROM gradle:8-jdk21 AS builder
 WORKDIR /workspace
 
 COPY olo-mono/gradle olo-mono/gradle
 COPY olo-mono/olo-spi olo-mono/olo-spi
 COPY olo-mono/olo-annotation olo-mono/olo-annotation
-COPY olo-mono/olo-annotation-processor olo-mono/olo-annotation-processor
 COPY olo-definition olo-definition
 COPY olo-workflow-input olo-workflow-input
 COPY olo-temporal-sdk olo-temporal-sdk
@@ -14,8 +13,12 @@ COPY gradle gradle
 COPY gradlew gradlew.bat settings.gradle build.gradle gradle.properties ./
 COPY src src
 
-RUN chmod +x gradlew olo-mono/publish-libs.sh \
-    && olo-mono/publish-libs.sh \
+RUN cd olo-mono/olo-spi \
+    && gradle -PoloPublishBuildDir=../build/publish-work/olo-spi publishMavenPublicationToOloMonoRepository -x test --no-daemon \
+    && cd ../olo-annotation \
+    && gradle -PoloPublishBuildDir=../build/publish-work/olo-annotation publishMavenPublicationToOloMonoRepository -x test --no-daemon \
+    && cd /workspace \
+    && chmod +x gradlew \
     && ./gradlew bootJar -x test --no-daemon
 
 # Runtime stage

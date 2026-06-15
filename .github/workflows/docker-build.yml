@@ -34,12 +34,13 @@ jobs:
       - name: Checkout olo
         uses: actions/checkout@v4
 
-      - name: Checkout olo-mono (olo-spi, olo-annotation)
+      - name: Checkout olo-mono (shared libs for composite build)
         uses: actions/checkout@v4
         with:
           repository: olo-labs/olo-mono
           path: olo-mono
           sparse-checkout: |
+            gradle
             olo-spi
             olo-annotation
           sparse-checkout-cone-mode: true
