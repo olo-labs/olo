@@ -116,12 +116,17 @@ public class SessionsController {
                 Map.of("tenantId", session.tenantId, "sessionId", sessionId, "messageId", messageId),
                 null, null, EventType.NODE_STARTED, correlationId);
 
-        String pipeline = (request.getTaskQueue() != null && !request.getTaskQueue().isBlank())
+        String pipeline = (session.pipelineId != null && !session.pipelineId.isBlank())
+                ? session.pipelineId.trim()
+                : ((request.getTaskQueue() != null && !request.getTaskQueue().isBlank())
+                        ? request.getTaskQueue().trim()
+                        : taskQueue);
+        String effectiveQueue = (request.getTaskQueue() != null && !request.getTaskQueue().isBlank())
                 ? request.getTaskQueue().trim()
-                : taskQueue;
+                : (session.queueName != null && !session.queueName.isBlank() ? session.queueName : taskQueue);
         org.olo.input.model.WorkflowInput workflowInput = WorkflowInputSerializer.build(
                 session.tenantId, sessionId, messageId, request.getContent(), pipeline, runId, runId, callbackBaseUrl, correlationId);
-        runService.startWorkflow(runId, workflowInput, request.getTaskQueue());
+        runService.startWorkflow(runId, workflowInput, effectiveQueue);
 
         return ResponseEntity.ok(new SendMessageResponse(messageId, runId));
     }

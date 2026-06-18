@@ -12,7 +12,7 @@
     "resizable" : true,
     "draggable" : true
   },
-  "queue" : "reviewer",
+  "queue" : "oloQueue2",
   "workflowType" : "olo",
   "runAgain" : true,
   "childWorkflows" : [ ],
@@ -169,15 +169,15 @@
   "defaultPromptId" : "default-prompt",
   "extensions" : [ ],
   "metadata" : {
-    "returnVariable" : "ReturnValue",
-    "role" : "reviewer",
     "plannerContext" : {
+      "selectedVariables" : [ "message" ],
+      "injectCapabilities" : false,
       "injectAgents" : false,
       "selectedAgents" : [ ],
-      "selectedTools" : [ ],
-      "selectedVariables" : [ "message" ],
-      "injectCapabilities" : false
+      "selectedTools" : [ ]
     },
-    "description" : "Review code and content critically"
+    "description" : "Review code and content critically",
+    "returnVariable" : "ReturnValue",
+    "role" : "reviewer"
   }
 }

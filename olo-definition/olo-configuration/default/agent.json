@@ -16,7 +16,7 @@
     "resizable" : true,
     "draggable" : true
   },
-  "queue" : "agent",
+  "queue" : "oloQueue2",
   "workflowType" : "olo",
   "runAgain" : true,
   "childWorkflows" : [ {
@@ -73,22 +73,6 @@
   },
   "state" : { },
   "parameters" : {
-    "model" : {
-      "type" : "string",
-      "label" : "Model",
-      "description" : "Model identifier",
-      "defaultValue" : "",
-      "required" : true,
-      "validation" : {
-        "minLength" : 1
-      },
-      "ui" : {
-        "widget" : "MODEL_SELECTOR",
-        "group" : "Model Settings",
-        "help" : "LLM used for agent reasoning.",
-        "order" : 2
-      }
-    },
     "temperature" : {
       "type" : "number",
       "label" : "Temperature",
@@ -137,6 +121,22 @@
         "group" : "Model Settings",
         "help" : "Caps how many planner/tool loops the agent may run.",
         "order" : 1
+      }
+    },
+    "model" : {
+      "type" : "string",
+      "label" : "Model",
+      "description" : "Model identifier",
+      "defaultValue" : "",
+      "required" : true,
+      "validation" : {
+        "minLength" : 1
+      },
+      "ui" : {
+        "widget" : "MODEL_SELECTOR",
+        "group" : "Model Settings",
+        "help" : "LLM used for agent reasoning.",
+        "order" : 2
       }
     }
   },
@@ -268,18 +268,18 @@
   "defaultPromptId" : "default-prompt",
   "extensions" : [ ],
   "metadata" : {
-    "description" : "Autonomous tool-using agent",
-    "agentType" : "autonomous",
     "returnVariable" : "ReturnValue",
-    "agentSelectionStrategy" : "dynamic",
     "role" : "agent",
+    "agentSelectionStrategy" : "dynamic",
     "planningStrategy" : "react",
     "plannerContext" : {
+      "selectedVariables" : [ "message" ],
+      "injectCapabilities" : false,
       "injectAgents" : true,
       "selectedAgents" : [ "planner", "reviewer", "architect" ],
-      "selectedTools" : [ ],
-      "selectedVariables" : [ "message" ],
-      "injectCapabilities" : false
-    }
+      "selectedTools" : [ ]
+    },
+    "description" : "Autonomous tool-using agent",
+    "agentType" : "autonomous"
   }
 }

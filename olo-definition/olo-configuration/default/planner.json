@@ -12,7 +12,7 @@
     "resizable" : true,
     "draggable" : true
   },
-  "queue" : "planner",
+  "queue" : "oloQueue1",
   "workflowType" : "olo",
   "runAgain" : true,
   "childWorkflows" : [ ],
@@ -169,15 +169,15 @@
   "defaultPromptId" : "default-prompt",
   "extensions" : [ ],
   "metadata" : {
-    "returnVariable" : "ReturnValue",
-    "role" : "planner",
     "plannerContext" : {
+      "selectedVariables" : [ "message" ],
+      "injectCapabilities" : false,
       "injectAgents" : false,
       "selectedAgents" : [ ],
-      "selectedTools" : [ ],
-      "selectedVariables" : [ "message" ],
-      "injectCapabilities" : false
+      "selectedTools" : [ ]
     },
-    "description" : "Structured plans and task breakdowns"
+    "description" : "Structured plans and task breakdowns",
+    "returnVariable" : "ReturnValue",
+    "role" : "planner"
   }
 }

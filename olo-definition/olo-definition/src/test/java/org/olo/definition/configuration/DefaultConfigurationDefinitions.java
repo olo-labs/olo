@@ -13,6 +13,9 @@ import org.olo.definition.workflow.WorkflowDefinition;
  */
 final class DefaultConfigurationDefinitions {
 
+    static final String OLO_QUEUE_1 = "oloQueue1";
+    static final String OLO_QUEUE_2 = "oloQueue2";
+
     private DefaultConfigurationDefinitions() {
     }
 
@@ -43,7 +46,7 @@ final class DefaultConfigurationDefinitions {
     }
 
     private static WorkflowDefinition agentPreset(
-            String id, String name, String shortDescription, String emoji, String... searchKeywords) {
+            String id, String queue, String name, String shortDescription, String emoji, String... searchKeywords) {
         return build(WorkflowBuilder.create(name)
                 .id(id)
                 .enabled(true)
@@ -52,7 +55,7 @@ final class DefaultConfigurationDefinitions {
                 .shortDescription(shortDescription)
                 .emoji(emoji)
                 .designer(agentDesigner(searchKeywords))
-                .queue(id)
+                .queue(queue)
                 .workflowType("olo")
                 .runAgain(true)
                 .version("1.0.0")
@@ -85,7 +88,7 @@ final class DefaultConfigurationDefinitions {
                         .resizable(true)
                         .draggable(true)
                         .build())
-                .queue("agent")
+                .queue(OLO_QUEUE_2)
                 .workflowType("olo")
                 .runAgain(true)
                 .version("1.0.0")
@@ -122,6 +125,7 @@ final class DefaultConfigurationDefinitions {
     static WorkflowDefinition architect() {
         return build(WorkflowBuilder.from(agentPreset(
                         "architect",
+                        OLO_QUEUE_1,
                         "Architect",
                         "System design and architecture guidance",
                         "🏗️",
@@ -130,7 +134,7 @@ final class DefaultConfigurationDefinitions {
     }
 
     static WorkflowDefinition ask() {
-        return agentPreset("ask", "Ask", "Direct questions and clear answers", "❓", "ask");
+        return agentPreset("ask", OLO_QUEUE_1, "Ask", "Direct questions and clear answers", "❓", "ask");
     }
 
     static WorkflowDefinition debug() {
@@ -143,7 +147,7 @@ final class DefaultConfigurationDefinitions {
                 .shortDescription(description)
                 .emoji("🐛")
                 .designer(agentDesigner("debug"))
-                .queue("debug")
+                .queue(OLO_QUEUE_2)
                 .workflowType("olo")
                 .runAgain(true)
                 .version("1.0.0")
@@ -161,16 +165,17 @@ final class DefaultConfigurationDefinitions {
     }
 
     static WorkflowDefinition detailed() {
-        return agentPreset("detailed", "Detailed", "Thorough, in-depth explanations", "📖", "detailed");
+        return agentPreset("detailed", OLO_QUEUE_1, "Detailed", "Thorough, in-depth explanations", "📖", "detailed");
     }
 
     static WorkflowDefinition fast() {
-        return agentPreset("fast", "Fast", "Quick, concise responses", "⚡", "fast");
+        return agentPreset("fast", OLO_QUEUE_2, "Fast", "Quick, concise responses", "⚡", "fast");
     }
 
     static WorkflowDefinition planner() {
         return agentPreset(
                 "planner",
+                OLO_QUEUE_1,
                 "Planner",
                 "Structured plans and task breakdowns",
                 "📋",
@@ -178,19 +183,19 @@ final class DefaultConfigurationDefinitions {
     }
 
     static WorkflowDefinition reviewer() {
-        return agentPreset("reviewer", "Reviewer", "Review code and content critically", "🔍", "reviewer");
+        return agentPreset("reviewer", OLO_QUEUE_2, "Reviewer", "Review code and content critically", "🔍", "reviewer");
     }
 
     static WorkflowDefinition strict() {
-        return agentPreset("strict", "Strict", "Precise, rule-following responses", "📏", "strict");
+        return agentPreset("strict", OLO_QUEUE_1, "Strict", "Precise, rule-following responses", "📏", "strict");
     }
 
     static WorkflowDefinition summary() {
-        return agentPreset("summary", "Summary", "Brief summaries and key points", "📝", "summary");
+        return agentPreset("summary", OLO_QUEUE_2, "Summary", "Brief summaries and key points", "📝", "summary");
     }
 
     static WorkflowDefinition teacher() {
-        return agentPreset("teacher", "Teacher", "Learn concepts step by step", "🎓", "teacher");
+        return agentPreset("teacher", OLO_QUEUE_1, "Teacher", "Learn concepts step by step", "🎓", "teacher");
     }
 
     /** Minimal echo task-queue preset ({@code workflow.json} on disk, id {@code minimal-echo}). */
@@ -203,7 +208,7 @@ final class DefaultConfigurationDefinitions {
                 .role("Echo")
                 .shortDescription("Minimal passthrough workflow")
                 .emoji("💬")
-                .queue("minimal-echo")
+                .queue(OLO_QUEUE_2)
                 .workflowType("olo")
                 .runAgain(true)
                 .version("1.0.0")

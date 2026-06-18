@@ -12,7 +12,7 @@
     "resizable" : true,
     "draggable" : true
   },
-  "queue" : "fast",
+  "queue" : "oloQueue2",
   "workflowType" : "olo",
   "runAgain" : true,
   "childWorkflows" : [ ],
@@ -169,15 +169,15 @@
   "defaultPromptId" : "default-prompt",
   "extensions" : [ ],
   "metadata" : {
-    "returnVariable" : "ReturnValue",
-    "role" : "fast",
     "plannerContext" : {
+      "selectedVariables" : [ "message" ],
+      "injectCapabilities" : false,
       "injectAgents" : false,
       "selectedAgents" : [ ],
-      "selectedTools" : [ ],
-      "selectedVariables" : [ "message" ],
-      "injectCapabilities" : false
+      "selectedTools" : [ ]
     },
-    "description" : "Quick, concise responses"
+    "description" : "Quick, concise responses",
+    "returnVariable" : "ReturnValue",
+    "role" : "fast"
   }
 }

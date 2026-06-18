@@ -12,7 +12,7 @@
     "resizable" : true,
     "draggable" : true
   },
-  "queue" : "debug",
+  "queue" : "oloQueue2",
   "workflowType" : "olo",
   "runAgain" : true,
   "childWorkflows" : [ ],
@@ -170,15 +170,15 @@
   "defaultPromptId" : "default-prompt",
   "extensions" : [ ],
   "metadata" : {
-    "returnVariable" : "ReturnValue",
-    "role" : "debug",
     "plannerContext" : {
+      "selectedVariables" : [ "message" ],
+      "injectCapabilities" : false,
       "injectAgents" : false,
       "selectedAgents" : [ ],
-      "selectedTools" : [ ],
-      "selectedVariables" : [ "message" ],
-      "injectCapabilities" : false
+      "selectedTools" : [ ]
     },
-    "description" : "Verbose output for troubleshooting"
+    "description" : "Verbose output for troubleshooting",
+    "returnVariable" : "ReturnValue",
+    "role" : "debug"
   }
 }

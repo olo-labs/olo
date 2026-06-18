@@ -6,7 +6,7 @@
   "role" : "Echo",
   "shortDescription" : "Minimal passthrough workflow",
   "emoji" : "💬",
-  "queue" : "minimal-echo",
+  "queue" : "oloQueue2",
   "workflowType" : "olo",
   "runAgain" : true,
   "childWorkflows" : [ ],
@@ -163,14 +163,14 @@
   "defaultPromptId" : "default-prompt",
   "extensions" : [ ],
   "metadata" : {
-    "description" : "Smallest valid OLO workflow: passes input through to output.",
     "plannerContext" : {
+      "selectedVariables" : [ "message" ],
+      "injectCapabilities" : false,
       "injectAgents" : false,
       "selectedAgents" : [ ],
-      "selectedTools" : [ ],
-      "selectedVariables" : [ "message" ],
-      "injectCapabilities" : false
+      "selectedTools" : [ ]
     },
-    "returnVariable" : "ReturnValue"
+    "returnVariable" : "ReturnValue",
+    "description" : "Smallest valid OLO workflow: passes input through to output."
   }
 }
