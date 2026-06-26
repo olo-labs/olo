@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -116,12 +117,57 @@ public final class FilesystemConfigurationLoader {
     }
 
     public static Path resolveConfigurationRoot(String configuredPath) {
+        boolean configuredProvided = configuredPath != null && !configuredPath.isBlank();
+        Path configured = configuredProvided ? resolveConfiguredPath(configuredPath) : null;
+        if (configured != null && hasLoadableWorkflows(configured)) {
+            return configured;
+        }
+        if (shouldDiscoverFallback(configuredPath, configured)) {
+            Path discovered = discoverMonorepoConfigurationRoot();
+            if (discovered != null) {
+                if (configured != null && Files.isDirectory(configured)) {
+                    log.warn(
+                            "Configured olo.configuration.dir has no workflow JSON ({}); using {}",
+                            configured,
+                            discovered);
+                } else if (configuredProvided) {
+                    log.warn(
+                            "Configured olo.configuration.dir not found ({}); using {}",
+                            configuredPath.trim(),
+                            discovered);
+                } else {
+                    log.info("Discovered olo.configuration.dir at {}", discovered);
+                }
+                return discovered;
+            }
+        }
+        if (configured != null && Files.isDirectory(configured)) {
+            return configured;
+        }
+        return null;
+    }
+
+    private static boolean shouldDiscoverFallback(String configuredPath, Path configured) {
+        if (configured != null && Files.isDirectory(configured)) {
+            return true;
+        }
+        if (configuredPath == null || configuredPath.isBlank()) {
+            return true;
+        }
+        String normalized = configuredPath.trim().replace('\\', '/').toLowerCase(Locale.ROOT);
+        return normalized.contains("olo-configuration")
+                || normalized.contains("olo-mono")
+                || normalized.contains("current-active")
+                || normalized.contains("default");
+    }
+
+    private static Path resolveConfiguredPath(String configuredPath) {
         if (configuredPath == null || configuredPath.isBlank()) {
             return null;
         }
         Path path = Path.of(configuredPath.trim());
-        if (path.isAbsolute() && Files.isDirectory(path)) {
-            return path.normalize();
+        if (path.isAbsolute()) {
+            return Files.isDirectory(path) ? path.normalize() : null;
         }
         Path fromCwd = Path.of(System.getProperty("user.dir", ".")).resolve(path).normalize();
         if (Files.isDirectory(fromCwd)) {
@@ -134,9 +180,60 @@ public final class FilesystemConfigurationLoader {
                 return sibling;
             }
         }
-        if (Files.isDirectory(path)) {
-            return path.normalize();
+        return Files.isDirectory(path) ? path.normalize() : null;
+    }
+
+    private static Path discoverMonorepoConfigurationRoot() {
+        Path cursor = Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
+        while (cursor != null) {
+            for (String relative : MONOREPO_CONFIGURATION_CANDIDATES) {
+                Path candidate = cursor.resolve(relative).normalize();
+                if (hasLoadableWorkflows(candidate)) {
+                    return candidate;
+                }
+            }
+            Path nestedMono = cursor.resolve("olo-mono");
+            if (Files.isDirectory(nestedMono)) {
+                for (String relative : MONOREPO_CONFIGURATION_CANDIDATES) {
+                    Path candidate = nestedMono.resolve(relative.substring("olo-mono/".length())).normalize();
+                    if (hasLoadableWorkflows(candidate)) {
+                        return candidate;
+                    }
+                }
+            }
+            cursor = cursor.getParent();
         }
-        return fromCwd;
+        return null;
+    }
+
+    private static final List<String> MONOREPO_CONFIGURATION_CANDIDATES = List.of(
+            "olo-mono/olo-definition/olo-configuration/current-active",
+            "olo-mono/olo-definition/olo-configuration/default");
+
+    static boolean hasLoadableWorkflows(Path rootDir) {
+        if (rootDir == null || !Files.isDirectory(rootDir)) {
+            return false;
+        }
+        if (containsWorkflowJson(rootDir)) {
+            return true;
+        }
+        try (Stream<Path> children = Files.list(rootDir)) {
+            return children
+                    .filter(Files::isDirectory)
+                    .anyMatch(regionDir -> containsWorkflowJson(regionDir));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static boolean containsWorkflowJson(Path dir) {
+        if (!Files.isDirectory(dir)) {
+            return false;
+        }
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "*.json")) {
+            return stream.iterator().hasNext();
+        } catch (IOException e) {
+            return false;
+        }
     }
 }

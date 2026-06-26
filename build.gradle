@@ -13,11 +13,10 @@ java {
     }
 }
 
+apply from: rootProject.file('../olo-mono/gradle/olo-mono-repo.gradle')
+
 repositories {
-    def oloMonoRepo = layout.projectDirectory.dir('olo-mono/build/repo')
-    if (oloMonoRepo.asFile.directory) {
-        maven { url = oloMonoRepo }
-    }
+    configureOloMonoRepositories(repositories)
     mavenCentral()
     mavenLocal()
 }

@@ -39,8 +39,14 @@ if exist ".env" (
 
 call :EnsureJava
 if errorlevel 1 (
-  pause
-  exit /b 1
+    pause
+    exit /b 1
+)
+
+call "%~dp0..\olo-mono\publish-libs.bat"
+if errorlevel 1 (
+    pause
+    exit /b 1
 )
 
 echo ========================================

@@ -95,13 +95,13 @@
       "type" : "string",
       "label" : "System Prompt",
       "description" : "System prompt for the agent",
-      "defaultValue" : "",
+      "defaultValue" : "{message}",
       "required" : false,
       "ui" : {
         "widget" : "TEXTAREA",
         "group" : "Model Settings",
-        "help" : "Optional instructions that shape agent behavior.",
-        "placeholder" : "You are a helpful assistant…",
+        "help" : "Include {message} to inject the workflow input into the system prompt.",
+        "placeholder" : "You are a helpful assistant…\n\n{message}",
         "order" : 0
       }
     },
@@ -126,16 +126,13 @@
     "model" : {
       "type" : "string",
       "label" : "Model",
-      "description" : "Model identifier",
+      "description" : "Default model identifier",
       "defaultValue" : "",
-      "required" : true,
-      "validation" : {
-        "minLength" : 1
-      },
+      "required" : false,
       "ui" : {
         "widget" : "MODEL_SELECTOR",
         "group" : "Model Settings",
-        "help" : "LLM used for agent reasoning.",
+        "help" : "Optional workflow default. Prefer the Model control on each Agent node.",
         "order" : 2
       }
     }

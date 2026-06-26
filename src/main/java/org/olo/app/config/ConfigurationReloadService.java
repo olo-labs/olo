@@ -42,7 +42,10 @@ public class ConfigurationReloadService {
         Map<String, RegionalConfigurationSnapshot> snapshots = FilesystemConfigurationLoader.load(root);
         if (snapshots.isEmpty()) {
             log.warn("Configuration reload found no workflows under {}", root);
-            return new ConfigurationReloadResult(false, 0, 0, "no workflow definitions found");
+            String message = FilesystemConfigurationLoader.hasLoadableWorkflows(root)
+                    ? "no valid workflow definitions found"
+                    : "no workflow JSON files found in configuration directory";
+            return new ConfigurationReloadResult(false, 0, 0, message);
         }
 
         String defaultRegion = resolveDefaultRegion(snapshots);
