@@ -11,7 +11,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -86,13 +85,16 @@ public final class FilesystemConfigurationLoader {
 
     static RegionalConfigurationSnapshot loadRegion(String region, Path regionDir) throws IOException {
         List<WorkflowDefinition> workflows = new ArrayList<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(regionDir, "*.json")) {
-            for (Path file : stream) {
-                WorkflowDefinition workflow = parseWorkflowFile(file);
-                if (workflow != null) {
-                    workflows.add(workflow);
-                }
-            }
+        try (Stream<Path> walk = Files.walk(regionDir)) {
+            walk.filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".json"))
+                    .sorted(Comparator.comparing(path -> regionDir.relativize(path).toString().replace('\\', '/')))
+                    .forEach(file -> {
+                        WorkflowDefinition workflow = parseWorkflowFile(file);
+                        if (workflow != null) {
+                            workflows.add(workflow);
+                        }
+                    });
         }
         if (workflows.isEmpty()) {
             log.debug("No workflow definitions in region folder {}", regionDir);
@@ -230,8 +232,9 @@ public final class FilesystemConfigurationLoader {
         if (!Files.isDirectory(dir)) {
             return false;
         }
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "*.json")) {
-            return stream.iterator().hasNext();
+        try (Stream<Path> walk = Files.walk(dir)) {
+            return walk.anyMatch(
+                    path -> Files.isRegularFile(path) && path.getFileName().toString().endsWith(".json"));
         } catch (IOException e) {
             return false;
         }

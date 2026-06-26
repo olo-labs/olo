@@ -46,4 +46,32 @@ class ConfigurationReloadServiceTest {
         assertThat(registry.get("current-active").getWorkflows()).hasSize(1);
         assertThat(registry.get("current-active").getWorkflows().get(0).getId()).isEqualTo("agent");
     }
+
+    @Test
+    void reloadLoadsWorkflowsFromNestedFoldersInFlatLayout() throws Exception {
+        Path nested = tempDir.resolve("agents");
+        Files.createDirectories(nested);
+        Files.writeString(
+                nested.resolve("agent.json"),
+                """
+                {
+                  "id": "agent",
+                  "label": "Agent",
+                  "queue": "agent",
+                  "workflowType": "olo",
+                  "version": "1.0.0",
+                  "nodes": [],
+                  "edges": []
+                }
+                """);
+
+        RegionalConfigurationRegistry registry = new RegionalConfigurationRegistry();
+        ConfigurationReloadService service = new ConfigurationReloadService(registry, tempDir.toString());
+
+        ConfigurationReloadService.ConfigurationReloadResult result = service.reload();
+
+        assertThat(result.ok()).isTrue();
+        assertThat(result.workflowCount()).isEqualTo(1);
+        assertThat(registry.get("current-active").getWorkflows().get(0).getId()).isEqualTo("agent");
+    }
 }

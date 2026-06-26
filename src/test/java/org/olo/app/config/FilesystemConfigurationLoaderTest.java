@@ -7,6 +7,7 @@ package org.olo.app.config;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.olo.definition.workflow.WorkflowDefinition;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,6 +29,29 @@ class FilesystemConfigurationLoaderTest {
     void hasLoadableWorkflowsDetectsFlatFolder() throws Exception {
         Files.writeString(tempDir.resolve("agent.json"), "{\"id\":\"agent\"}");
         assertThat(FilesystemConfigurationLoader.hasLoadableWorkflows(tempDir)).isTrue();
+    }
+
+    @Test
+    void hasLoadableWorkflowsDetectsNestedFolder() throws Exception {
+        Path nested = tempDir.resolve("agents");
+        Files.createDirectories(nested);
+        Files.writeString(nested.resolve("agent.json"), "{\"id\":\"agent\"}");
+        assertThat(FilesystemConfigurationLoader.hasLoadableWorkflows(tempDir)).isTrue();
+    }
+
+    @Test
+    void loadRegionIncludesNestedWorkflowJson() throws Exception {
+        Path regionDir = tempDir.resolve("current-active");
+        Path nested = regionDir.resolve("agents");
+        Files.createDirectories(nested);
+        Files.writeString(nested.resolve("agent.json"), "{\"id\":\"agent\",\"nodes\":[]}");
+
+        var snapshots = FilesystemConfigurationLoader.load(tempDir);
+
+        assertThat(snapshots).containsKey("current-active");
+        assertThat(snapshots.get("current-active").getWorkflows())
+                .extracting(WorkflowDefinition::getId)
+                .containsExactly("agent");
     }
 
     @Test
