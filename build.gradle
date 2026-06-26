@@ -13,10 +13,19 @@ java {
     }
 }
 
-apply from: rootProject.file('../olo-mono/gradle/olo-mono-repo.gradle')
+def oloMonoRepoScript = ['olo-mono/gradle/olo-mono-repo.gradle',
+        '../olo-mono/gradle/olo-mono-repo.gradle',
+        '../../olo-mono/gradle/olo-mono-repo.gradle']
+        .collect { rootProject.file(it) }
+        .find { it.exists() }
+if (oloMonoRepoScript != null) {
+    apply from: oloMonoRepoScript
+}
 
 repositories {
-    configureOloMonoRepositories(repositories)
+    if (oloMonoRepoScript != null) {
+        configureOloMonoRepositories(repositories)
+    }
     mavenCentral()
     mavenLocal()
 }

@@ -34,7 +34,7 @@ jobs:
       - name: Checkout olo
         uses: actions/checkout@v4
 
-      - name: Checkout olo-mono (shared libs for composite build)
+      - name: Checkout olo-mono (shared libs for Docker build)
         uses: actions/checkout@v4
         with:
           repository: olo-labs/olo-mono
@@ -43,6 +43,8 @@ jobs:
             gradle
             olo-spi
             olo-annotation
+            olo-definition
+            olo-workflow-input
           sparse-checkout-cone-mode: true
 
       - name: Resolve library version
