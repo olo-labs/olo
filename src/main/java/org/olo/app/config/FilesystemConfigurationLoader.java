@@ -22,8 +22,9 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 /**
- * Scans {@code olo.configuration.dir} for workflow JSON: either regional subfolders or a flat
- * folder of {@code *.json} files (treated as region {@code current-active}).
+ * Scans {@code olo.configuration.dir} for workflow JSON: regional subfolders or a flat folder
+ * (treated as region {@code current-active}). Within each region, {@code *.json} files are
+ * discovered recursively (e.g. {@code current-active/agents/agent.json}).
  */
 public final class FilesystemConfigurationLoader {
 
