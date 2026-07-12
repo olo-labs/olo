@@ -1,3 +1,7 @@
+<!--
+Copyright (c) 2026 Olo Labs
+SPDX-License-Identifier: Apache-2.0
+-->
 # olo-workflow-input
 
 Standalone library for **workflow invocation payloads** — serialize and deserialize the JSON sent when a workflow execution is requested (e.g. Temporal start argument).

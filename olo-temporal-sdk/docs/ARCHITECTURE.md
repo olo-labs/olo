@@ -1,3 +1,7 @@
+<!--
+Copyright (c) 2026 Olo Labs
+SPDX-License-Identifier: Apache-2.0
+-->
 # Olo Temporal SDK – Architecture
 
 This document describes the architecture of **olo-temporal-sdk**: a Java library that wraps the Temporal Java SDK and exposes a configured client for the Olo backend and other Java clients.

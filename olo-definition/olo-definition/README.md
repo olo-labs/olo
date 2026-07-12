@@ -1,3 +1,7 @@
+<!--
+Copyright (c) 2026 Olo Labs
+SPDX-License-Identifier: Apache-2.0
+-->
 # olo-definition
 
 Pure Java library for **serializable AI orchestration workflow graphs**. No execution, no model calls, no runtime state, no Spring.

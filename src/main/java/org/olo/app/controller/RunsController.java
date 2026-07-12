@@ -104,6 +104,19 @@ public class RunsController {
         return ResponseEntity.noContent().build();
     }
 
+    @Operation(summary = "Cancel run", description = "Cancels an in-progress workflow execution")
+    @PostMapping("/{runId}/cancel")
+    public ResponseEntity<Void> cancelRun(@PathVariable String runId) {
+        try {
+            runService.cancelRun(runId);
+            return ResponseEntity.noContent().build();
+        } catch (org.olo.app.service.impl.run.RunCanceller.RunNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (org.olo.app.service.impl.run.RunCanceller.RunNotCancellableException e) {
+            return ResponseEntity.status(409).build();
+        }
+    }
+
     @Operation(summary = "Get run", description = "Get run status and metadata")
     @GetMapping("/{runId}")
     public ResponseEntity<Map<String, Object>> getRun(@PathVariable String runId) {

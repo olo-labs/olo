@@ -22,6 +22,8 @@ public interface RunService {
 
     void signalHumanInput(String runId, boolean approved, String message);
 
+    void cancelRun(String runId);
+
     /** Idempotency key: (runId, sequenceNumber). eventType/correlationId optional; correlationId falls back to run's. */
     void appendEvent(String runId, String nodeId, String parentNodeId,
                     String nodeType, String status,

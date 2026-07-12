@@ -1,3 +1,7 @@
+<!--
+Copyright (c) 2026 Olo Labs
+SPDX-License-Identifier: Apache-2.0
+-->
 # OLO Architecture
 
 This document describes the architecture of the **OLO** (AI orchestration) monorepo: how declarative workflow graphs are separated from execution, how modules depend on each other, and how workflows are built, serialized, validated, and extended.

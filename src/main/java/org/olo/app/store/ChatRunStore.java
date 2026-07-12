@@ -17,7 +17,7 @@ public class ChatRunStore {
         public final String runId;
         public final String sessionId;
         public final String messageId;
-        public volatile String status; // running | completed | failed | waiting_human
+        public volatile String status; // running | completed | failed | waiting_human | cancelled
         public final long createdAt;
         /** Tenant that owns this run; used for WebSocket SUBSCRIBE_RUN tenant check. */
         public final String tenantId;

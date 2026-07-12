@@ -1,3 +1,7 @@
+<!--
+Copyright (c) 2026 Olo Labs
+SPDX-License-Identifier: Apache-2.0
+-->
 # olo-workflow-input Architecture
 
 This document describes **olo-workflow-input**: a standalone Java library that serializes and deserializes the **workflow invocation payload** sent when a workflow execution is requested (e.g. Temporal `StartWorkflowExecution` argument).

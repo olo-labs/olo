@@ -66,4 +66,9 @@ public class SdkWorkflowRunner implements WorkflowRunner {
     public void signalHumanInput(String runId, boolean approved, String message) {
         temporalClient.signalHumanInput(runId, approved, message);
     }
+
+    @Override
+    public void cancelChatRun(String runId) {
+        temporalClient.cancelChatWorkflow(runId);
+    }
 }

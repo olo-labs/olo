@@ -1,3 +1,5 @@
+REM Copyright (c) 2026 Olo Labs
+REM SPDX-License-Identifier: Apache-2.0
 @echo off
 setlocal enabledelayedexpansion
 

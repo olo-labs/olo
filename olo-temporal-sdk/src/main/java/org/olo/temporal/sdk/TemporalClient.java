@@ -76,6 +76,17 @@ public final class TemporalClient {
         stub.signal(HUMAN_INPUT_SIGNAL, approved, message != null ? message : "");
     }
 
+    /**
+     * Requests cancellation of the chat workflow for {@code runId}.
+     */
+    public void cancelChatWorkflow(String runId) {
+        if (runId == null || runId.isBlank()) {
+            throw new IllegalArgumentException("runId is required");
+        }
+        WorkflowStub stub = workflowClient.newUntypedWorkflowStub(runWorkflowId(runId));
+        stub.cancel();
+    }
+
     public static String runWorkflowId(String runId) {
         return RUN_WORKFLOW_ID_PREFIX + runId.trim();
     }

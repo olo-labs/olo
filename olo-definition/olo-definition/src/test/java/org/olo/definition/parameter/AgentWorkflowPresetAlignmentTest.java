@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2026 Olo Labs
+ * SPDX-License-Identifier: Apache-2.0
+ */
 package org.olo.definition.parameter;
 
 import com.fasterxml.jackson.databind.JsonNode;

@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2026 Olo Labs
+ * SPDX-License-Identifier: Apache-2.0
+ */
 package org.olo.definition.workflow;
 
 import static org.assertj.core.api.Assertions.assertThat;

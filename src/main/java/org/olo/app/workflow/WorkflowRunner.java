@@ -23,4 +23,6 @@ public interface WorkflowRunner {
             WorkflowRunCompletion completion);
 
     void signalHumanInput(String runId, boolean approved, String message);
+
+    void cancelChatRun(String runId);
 }
