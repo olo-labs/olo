@@ -65,9 +65,15 @@ public class RunHumanStepPersistence {
     }
 
     private void handleHumanWaiting(String runId, OloExecutionEvent event) {
-        String promptText = RunHumanStepTextUtils.extractHumanStepPromptText(event.getInput(), event.getMetadata());
+        String promptText = RunHumanStepTextUtils.extractHumanStepPromptText(
+                event.getInput(), event.getMetadata(), event.getOutput());
         if (promptText == null || promptText.isBlank()) {
-            return;
+            Map<String, Object> output = event.getOutput();
+            if (output != null && output.get("inputPluginId") != null) {
+                promptText = String.valueOf(output.get("inputPluginId"));
+            } else {
+                return;
+            }
         }
         long seq = event.getSequenceNumber() != null ? event.getSequenceNumber() : 0L;
         String node = event.getNodeId() != null ? event.getNodeId() : "";

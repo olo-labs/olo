@@ -15,13 +15,18 @@ final class RunHumanStepTextUtils {
     private RunHumanStepTextUtils() {
     }
 
-    /** Text shown when a HUMAN node is waiting: input/metadata keys message, prompt, text, question. */
-    static String extractHumanStepPromptText(Map<String, Object> input, Map<String, Object> metadata) {
-        String s = firstNonBlankString(input, "message", "prompt", "text", "question");
+    /** Text shown when a HUMAN node is waiting: input/metadata/output keys message, prompt, title, text, question. */
+    static String extractHumanStepPromptText(
+            Map<String, Object> input, Map<String, Object> metadata, Map<String, Object> output) {
+        String s = firstNonBlankString(input, "message", "prompt", "text", "question", "title");
         if (s != null) {
             return s;
         }
-        return firstNonBlankString(metadata, "message", "prompt", "text", "question");
+        s = firstNonBlankString(output, "prompt", "title", "message", "description", "text", "question");
+        if (s != null) {
+            return s;
+        }
+        return firstNonBlankString(metadata, "message", "prompt", "text", "question", "title");
     }
 
     /**
