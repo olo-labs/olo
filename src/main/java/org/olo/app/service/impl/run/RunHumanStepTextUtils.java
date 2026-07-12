@@ -51,7 +51,22 @@ final class RunHumanStepTextUtils {
         if (response instanceof String r && !r.trim().isEmpty()) {
             return r.trim();
         }
+        Object comment = output.get("comment");
+        if (comment instanceof String c && !c.trim().isEmpty()) {
+            return c.trim();
+        }
         return null;
+    }
+
+    /** Text stored in chat history for operator human-input API submissions. */
+    static String resolveOperatorReplyText(boolean approved, String message, String historyText) {
+        if (historyText != null && !historyText.isBlank()) {
+            return historyText.trim();
+        }
+        if (message != null && !message.isBlank()) {
+            return message.trim();
+        }
+        return approved ? "Approve" : "Cancel";
     }
 
     /**

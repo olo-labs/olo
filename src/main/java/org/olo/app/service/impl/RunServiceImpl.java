@@ -8,6 +8,7 @@ package org.olo.app.service.impl;
 import org.olo.app.domain.EventType;
 import org.olo.app.service.RunService;
 import org.olo.app.service.impl.run.RunAssistantPersistence;
+import org.olo.app.service.impl.run.RunHumanStepPersistence;
 import org.olo.app.service.impl.run.RunCanceller;
 import org.olo.app.service.impl.run.RunEventHandler;
 import org.olo.app.service.impl.run.RunWorkflowStarter;
@@ -29,6 +30,7 @@ public class RunServiceImpl implements RunService {
     private final RunWorkflowStarter workflowStarter;
     private final RunEventHandler eventHandler;
     private final RunAssistantPersistence assistantPersistence;
+    private final RunHumanStepPersistence humanStepPersistence;
     private final RunCanceller runCanceller;
     private final WorkflowRunner workflowRunner;
     private final RunEventBroadcaster broadcaster;
@@ -38,6 +40,7 @@ public class RunServiceImpl implements RunService {
     public RunServiceImpl(RunWorkflowStarter workflowStarter,
                           RunEventHandler eventHandler,
                           RunAssistantPersistence assistantPersistence,
+                          RunHumanStepPersistence humanStepPersistence,
                           RunCanceller runCanceller,
                           WorkflowRunner workflowRunner,
                           RunEventBroadcaster broadcaster,
@@ -46,6 +49,7 @@ public class RunServiceImpl implements RunService {
         this.workflowStarter = workflowStarter;
         this.eventHandler = eventHandler;
         this.assistantPersistence = assistantPersistence;
+        this.humanStepPersistence = humanStepPersistence;
         this.runCanceller = runCanceller;
         this.workflowRunner = workflowRunner;
         this.broadcaster = broadcaster;
@@ -59,7 +63,8 @@ public class RunServiceImpl implements RunService {
     }
 
     @Override
-    public void signalHumanInput(String runId, boolean approved, String message) {
+    public void signalHumanInput(String runId, boolean approved, String message, String historyText) {
+        humanStepPersistence.persistOperatorReply(runId, approved, message, historyText);
         workflowRunner.signalHumanInput(runId, approved, message);
     }
 

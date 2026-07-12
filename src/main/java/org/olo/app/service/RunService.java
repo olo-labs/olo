@@ -20,7 +20,7 @@ public interface RunService {
 
     void startWorkflow(String runId, WorkflowInput workflowInput, String taskQueueFromFrontend);
 
-    void signalHumanInput(String runId, boolean approved, String message);
+    void signalHumanInput(String runId, boolean approved, String message, String historyText);
 
     void cancelRun(String runId);
 

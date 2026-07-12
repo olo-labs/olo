@@ -51,8 +51,20 @@ public class RunHumanStepPersistence {
     }
 
     /**
-     * Persists the human-step question when a HUMAN node enters WAITING, and the user's decision on COMPLETED.
+     * Persists the operator reply when the UI submits human input (before workflow COMPLETED event).
      */
+    public void persistOperatorReply(String runId, boolean approved, String message, String historyText) {
+        if (humanDecisionPersistedRunIds.contains(runId)) {
+            return;
+        }
+        String decisionText = RunHumanStepTextUtils.resolveOperatorReplyText(approved, message, historyText);
+        if (decisionText == null || decisionText.isBlank()) {
+            return;
+        }
+        persistUserConversationMessage(runId, decisionText);
+        humanDecisionPersistedRunIds.add(runId);
+    }
+
     public void handleHumanStepEvent(String runId, OloExecutionEvent event) {
         if (NodeType.HUMAN.equals(event.getNodeType()) && NodeStatus.WAITING.equals(event.getStatus())) {
             handleHumanWaiting(runId, event);
@@ -81,9 +93,8 @@ public class RunHumanStepPersistence {
         if (humanStepPromptPersistedKeys.contains(dedupeKey)) {
             return;
         }
-        List<String> optionLines = RunHumanStepTextUtils.extractHumanStepOptionLines(
-                event.getInput(), event.getMetadata(), event.getOutput());
-        persistHumanStepPromptMessage(runId, promptText.trim(), optionLines);
+        // Persist only the prompt line; operator choice is stored as a separate user message on COMPLETED.
+        persistHumanStepPromptMessage(runId, promptText.trim(), List.of());
         humanStepPromptPersistedKeys.add(dedupeKey);
     }
 

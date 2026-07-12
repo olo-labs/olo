@@ -99,7 +99,8 @@ public class RunsController {
     public ResponseEntity<Void> humanInput(@PathVariable String runId, @RequestBody(required = false) HumanInputRequest body) {
         boolean approved = body != null && body.isApproved();
         String message = body != null ? body.getMessage() : null;
-        runService.signalHumanInput(runId, approved, message);
+        String historyText = body != null ? body.getHistoryText() : null;
+        runService.signalHumanInput(runId, approved, message, historyText);
         runStore.setStatus(runId, "running");
         return ResponseEntity.noContent().build();
     }
