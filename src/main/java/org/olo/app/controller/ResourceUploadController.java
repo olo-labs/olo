@@ -5,6 +5,7 @@
 
 package org.olo.app.controller;
 
+import org.olo.app.service.RagIngestService;
 import org.olo.app.service.ResourceUploadService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -33,9 +34,12 @@ public class ResourceUploadController {
     private static final Logger log = LoggerFactory.getLogger(ResourceUploadController.class);
 
     private final ResourceUploadService resourceUploadService;
+    private final RagIngestService ragIngestService;
 
-    public ResourceUploadController(ResourceUploadService resourceUploadService) {
+    public ResourceUploadController(ResourceUploadService resourceUploadService,
+                                    RagIngestService ragIngestService) {
         this.resourceUploadService = resourceUploadService;
+        this.ragIngestService = ragIngestService;
     }
 
     @Operation(summary = "Upload resource files", description = "Multipart: capabilitySource, files; optional taskQueue, pipelineId")
@@ -67,13 +71,23 @@ public class ResourceUploadController {
 
     @Operation(summary = "Reprocess uploaded file", description = "JSON: capabilitySource (or legacy ragId), fileName")
     @PostMapping(value = "/api/resource/reprocess", consumes = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, Object>> reprocess(@RequestBody ReprocessRequest body) {
+    public ResponseEntity<Map<String, Object>> reprocess(@RequestBody ReprocessRequest body) throws Exception {
         String src = body.capabilitySource();
         if (src == null || src.isBlank()) {
             src = body.ragId();
         }
         log.info("POST /api/resource/reprocess capabilitySource={} fileName={}", src, body.fileName());
-        return ResponseEntity.ok(Map.of("success", true));
+        List<String> files = body.fileName() == null || body.fileName().isBlank()
+                ? List.of()
+                : List.of(body.fileName().trim());
+        Map<String, Object> result = ragIngestService.startIngest(
+                "default",
+                src,
+                files,
+                null,
+                null);
+        boolean ok = Boolean.TRUE.equals(result.get("success"));
+        return ok ? ResponseEntity.ok(result) : ResponseEntity.badRequest().body(result);
     }
 
     private static String resolveCapabilitySource(String capabilitySource, String ragId) {

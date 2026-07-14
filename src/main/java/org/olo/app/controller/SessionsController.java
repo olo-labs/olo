@@ -18,11 +18,13 @@ import org.olo.app.service.RunService;
 import org.olo.app.store.*;
 import org.olo.app.workflow.impl.WorkflowInputSerializer;
 import io.swagger.v3.oas.annotations.Operation;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -44,6 +46,8 @@ public class SessionsController {
     private final ChatRedisPersistence redisPersistence;
     private final String taskQueue;
     private final String callbackBaseUrl;
+    private final String ragChatPipeline;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public SessionsController(ChatSessionStore sessionStore,
                               ChatMessageStore messageStore,
@@ -52,7 +56,8 @@ public class SessionsController {
                               RunService runService,
                               @Autowired(required = false) ChatRedisPersistence redisPersistence,
                               @Qualifier("oloTaskQueue") String taskQueue,
-                              @Qualifier("oloCallbackBaseUrl") String callbackBaseUrl) {
+                              @Qualifier("oloCallbackBaseUrl") String callbackBaseUrl,
+                              @Value("${olo.chat.rag.pipeline:rag-chat}") String ragChatPipeline) {
         this.sessionStore = sessionStore;
         this.messageStore = messageStore;
         this.runStore = runStore;
@@ -61,6 +66,7 @@ public class SessionsController {
         this.redisPersistence = redisPersistence;
         this.taskQueue = taskQueue;
         this.callbackBaseUrl = callbackBaseUrl;
+        this.ragChatPipeline = ragChatPipeline == null ? "rag-chat" : ragChatPipeline.trim();
     }
 
     @Operation(summary = "Create session", description = "Create a new chat session for a tenant, optionally scoped by queue and pipeline.")
@@ -116,16 +122,43 @@ public class SessionsController {
                 Map.of("tenantId", session.tenantId, "sessionId", sessionId, "messageId", messageId),
                 null, null, EventType.NODE_STARTED, correlationId);
 
+        String capabilitySource = request.getCapabilitySource() == null ? "" : request.getCapabilitySource().trim();
+        boolean ragSelected = !capabilitySource.isEmpty();
+
         String pipeline = (session.pipelineId != null && !session.pipelineId.isBlank())
                 ? session.pipelineId.trim()
-                : ((request.getTaskQueue() != null && !request.getTaskQueue().isBlank())
-                        ? request.getTaskQueue().trim()
-                        : taskQueue);
+                : (ragSelected
+                        ? ragChatPipeline
+                        : ((request.getTaskQueue() != null && !request.getTaskQueue().isBlank())
+                                ? request.getTaskQueue().trim()
+                                : taskQueue));
         String effectiveQueue = (request.getTaskQueue() != null && !request.getTaskQueue().isBlank())
                 ? request.getTaskQueue().trim()
                 : (session.queueName != null && !session.queueName.isBlank() ? session.queueName : taskQueue);
+
+        String workflowMessage = request.getContent();
+        if (ragSelected) {
+            try {
+                workflowMessage = objectMapper.writeValueAsString(Map.of(
+                        "message", request.getContent(),
+                        "capabilitySource", capabilitySource,
+                        "ragTag", capabilitySource));
+            } catch (Exception ignored) {
+                workflowMessage = request.getContent();
+            }
+        }
+
         org.olo.input.model.WorkflowInput workflowInput = WorkflowInputSerializer.build(
-                session.tenantId, sessionId, messageId, request.getContent(), pipeline, runId, runId, callbackBaseUrl, correlationId);
+                session.tenantId,
+                sessionId,
+                messageId,
+                workflowMessage,
+                pipeline,
+                runId,
+                runId,
+                callbackBaseUrl,
+                correlationId,
+                ragSelected ? capabilitySource : null);
         runService.startWorkflow(runId, workflowInput, effectiveQueue);
 
         return ResponseEntity.ok(new SendMessageResponse(messageId, runId));

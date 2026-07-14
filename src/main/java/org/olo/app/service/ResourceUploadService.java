@@ -150,6 +150,63 @@ public class ResourceUploadService {
         return body;
     }
 
+    public List<Map<String, Object>> listCapabilitySources() {
+        try {
+            if (!Files.isDirectory(baseDir)) {
+                return List.of();
+            }
+            List<Map<String, Object>> sources = new ArrayList<>();
+            try (var stream = Files.list(baseDir)) {
+                for (Path child : stream.filter(Files::isDirectory).toList()) {
+                    String name = child.getFileName().toString();
+                    List<Map<String, Object>> files = listUploadedFiles(name);
+                    sources.add(Map.of(
+                            "capabilitySource", name,
+                            "fileCount", files.size(),
+                            "files", files));
+                }
+            }
+            sources.sort((a, b) -> String.valueOf(a.get("capabilitySource"))
+                    .compareToIgnoreCase(String.valueOf(b.get("capabilitySource"))));
+            return sources;
+        } catch (IOException e) {
+            log.warn("listCapabilitySources failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    public List<Map<String, Object>> listUploadedFiles(String capabilitySource) {
+        if (capabilitySource == null || capabilitySource.isBlank()) {
+            return List.of();
+        }
+        try {
+            Path dir = baseDir.resolve(safeCapabilitySegment(capabilitySource));
+            if (!Files.isDirectory(dir)) {
+                return List.of();
+            }
+            List<Map<String, Object>> files = new ArrayList<>();
+            try (var stream = Files.list(dir)) {
+                for (Path file : stream.filter(Files::isRegularFile).toList()) {
+                    String name = file.getFileName().toString();
+                    if (name.startsWith(".")) {
+                        continue;
+                    }
+                    files.add(Map.of(
+                            "fileName", name,
+                            "capabilitySource", capabilitySource.trim(),
+                            "sizeBytes", Files.size(file),
+                            "lastModified", Files.getLastModifiedTime(file).toMillis()));
+                }
+            }
+            files.sort((a, b) -> String.valueOf(a.get("fileName"))
+                    .compareToIgnoreCase(String.valueOf(b.get("fileName"))));
+            return files;
+        } catch (IOException e) {
+            log.warn("listUploadedFiles failed for {}: {}", capabilitySource, e.getMessage());
+            return List.of();
+        }
+    }
+
     static String safeCapabilitySegment(String s) {
         String t = s.trim();
         if (t.isEmpty()) {

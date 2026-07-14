@@ -42,6 +42,19 @@ public final class WorkflowInputSerializer {
                                      String runId,
                                      String callbackBaseUrl,
                                      String correlationId) {
+        return build(tenantId, sessionId, messageId, userMessage, pipeline, transactionId, runId, callbackBaseUrl, correlationId, null);
+    }
+
+    public static WorkflowInput build(String tenantId,
+                                     String sessionId,
+                                     String messageId,
+                                     String userMessage,
+                                     String pipeline,
+                                     String transactionId,
+                                     String runId,
+                                     String callbackBaseUrl,
+                                     String correlationId,
+                                     String ragTag) {
         String userMessageSafe = userMessage != null ? userMessage : "";
 
         InputItem userQueryInput = new InputItem(
@@ -69,11 +82,62 @@ public final class WorkflowInputSerializer {
                 transactionId != null ? transactionId : ""
         );
 
-        Metadata metadata = new Metadata(null, 0L);
+        Metadata metadata = (ragTag != null && !ragTag.isBlank())
+                ? new Metadata(ragTag.trim(), System.currentTimeMillis())
+                : new Metadata(null, 0L);
 
         return WorkflowInput.builder()
                 .version(VERSION)
                 .addInput(userQueryInput)
+                .context(context)
+                .routing(routing)
+                .metadata(metadata)
+                .build();
+    }
+
+    /**
+     * Builds workflow input for document RAG ingest runs ({@code documents-index} pipeline).
+     */
+    public static WorkflowInput buildRagIngest(String tenantId,
+                                               String capabilitySource,
+                                               String fileNamesJson,
+                                               String pipeline,
+                                               String transactionId,
+                                               String runId,
+                                               String callbackBaseUrl,
+                                               String correlationId) {
+        String payload = fileNamesJson != null ? fileNamesJson : "{}";
+
+        InputItem ingestInput = new InputItem(
+                USER_QUERY_INPUT_NAME,
+                "RAG ingest request",
+                InputType.STRING,
+                new Storage(StorageMode.LOCAL, null, null),
+                payload
+        );
+
+        Context context = new Context(
+                tenantId != null ? tenantId : "default",
+                "",
+                List.of("PUBLIC"),
+                Collections.emptyList(),
+                "rag-ingest",
+                runId != null ? runId : "",
+                callbackBaseUrl != null ? callbackBaseUrl : "",
+                correlationId != null ? correlationId : ""
+        );
+
+        Routing routing = new Routing(
+                pipeline != null && !pipeline.isBlank() ? pipeline : "documents-index",
+                TransactionType.WORKFLOW_RUN,
+                transactionId != null ? transactionId : ""
+        );
+
+        Metadata metadata = new Metadata(capabilitySource, System.currentTimeMillis());
+
+        return WorkflowInput.builder()
+                .version(VERSION)
+                .addInput(ingestInput)
                 .context(context)
                 .routing(routing)
                 .metadata(metadata)

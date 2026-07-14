@@ -16,6 +16,9 @@ public class SendMessageRequest {
     private Double temperature;
     private Boolean ragEnabled;
 
+    /** Indexed knowledge source / capability source for RAG-grounded chat. */
+    private String capabilitySource;
+
     /** Task queue / pipeline from frontend; overrides backend default when set. */
     private String taskQueue;
 
@@ -30,6 +33,9 @@ public class SendMessageRequest {
 
     public Boolean getRagEnabled() { return ragEnabled; }
     public void setRagEnabled(Boolean ragEnabled) { this.ragEnabled = ragEnabled; }
+
+    public String getCapabilitySource() { return capabilitySource; }
+    public void setCapabilitySource(String capabilitySource) { this.capabilitySource = capabilitySource; }
 
     public String getTaskQueue() { return taskQueue; }
     public void setTaskQueue(String taskQueue) { this.taskQueue = taskQueue; }
