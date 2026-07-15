@@ -61,32 +61,7 @@ public class ResourceUploadController {
         List<MultipartFile> list = files == null ? List.of() : Arrays.asList(files);
         Map<String, Object> body = resourceUploadService.saveUpload(request, resolved, list, taskQueue, pipelineId);
         boolean ok = Boolean.TRUE.equals(body.get("success"));
-        if (!ok) {
-            return ResponseEntity.badRequest().body(body);
-        }
-        try {
-            @SuppressWarnings("unchecked")
-            List<Map<String, String>> savedFiles = (List<Map<String, String>>) body.getOrDefault("files", List.of());
-            List<String> fileNames = savedFiles.stream()
-                    .map(entry -> entry == null ? null : entry.get("fileName"))
-                    .filter(name -> name != null && !name.isBlank())
-                    .toList();
-            if (!fileNames.isEmpty()) {
-                Map<String, Object> ingest = ragIngestService.startIngest(
-                        "default",
-                        resolved,
-                        fileNames,
-                        taskQueue,
-                        pipelineId);
-                body.put("ingest", ingest);
-            }
-        } catch (Exception e) {
-            log.warn("resource upload succeeded but ingest kickoff failed for capabilitySource={}: {}", resolved, e.getMessage(), e);
-            body.put("ingest", Map.of(
-                    "success", false,
-                    "message", "Upload saved, but knowledge refresh failed: " + e.getMessage()));
-        }
-        return ResponseEntity.ok(body);
+        return ok ? ResponseEntity.ok(body) : ResponseEntity.badRequest().body(body);
     }
 
     public record ReprocessRequest(String capabilitySource, String ragId, String fileName) {}

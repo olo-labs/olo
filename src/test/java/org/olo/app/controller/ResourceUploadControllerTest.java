@@ -22,12 +22,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ResourceUploadControllerTest {
 
     @Test
-    void uploadTriggersKnowledgeRefreshAfterSavingFiles() throws Exception {
+    void uploadSavesFilesToSharedFolderOnly() throws Exception {
         ResourceUploadService resourceUploadService = mock(ResourceUploadService.class);
         RagIngestService ragIngestService = mock(RagIngestService.class);
         HttpServletRequest request = mock(HttpServletRequest.class);
@@ -40,8 +41,6 @@ class ResourceUploadControllerTest {
         uploadResult.put("files", List.of(Map.of("fileName", "notes.pdf")));
         when(resourceUploadService.saveUpload(any(), eq("rag-knowledge"), any(), eq(null), eq(null)))
                 .thenReturn(uploadResult);
-        when(ragIngestService.startIngest(eq("default"), eq("rag-knowledge"), eq(List.of("notes.pdf")), eq(null), eq(null)))
-                .thenReturn(Map.of("success", true, "runId", "run-1"));
 
         ResourceUploadController controller = new ResourceUploadController(resourceUploadService, ragIngestService);
         MultipartFile[] files = {new MockMultipartFile("files", "notes.pdf", "application/pdf", new byte[] {1, 2, 3})};
@@ -50,6 +49,7 @@ class ResourceUploadControllerTest {
 
         assertEquals(200, response.getStatusCode().value());
         assertTrue(Boolean.TRUE.equals(response.getBody().get("success")));
-        assertTrue(response.getBody().containsKey("ingest"));
+        assertEquals(List.of(Map.of("fileName", "notes.pdf")), response.getBody().get("files"));
+        verifyNoInteractions(ragIngestService);
     }
 }
