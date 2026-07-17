@@ -85,6 +85,11 @@ public class DemoConfig {
     }
 
     @Bean
+    public KnowledgeSourceStore knowledgeSourceStore() {
+        return new KnowledgeSourceStore();
+    }
+
+    @Bean
     public TemporalClient temporalClient(ResolvedOloRuntimeSettings runtimeSettings) {
         return TemporalClient.newBuilder()
                 .target(temporalTarget)

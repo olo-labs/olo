@@ -11,6 +11,7 @@ import org.olo.app.domain.NodeType;
 import org.olo.app.domain.OloExecutionEvent;
 import org.olo.app.store.ChatRunStore;
 import org.olo.app.store.ExecutionEventStore;
+import org.olo.app.store.KnowledgeSourceStore;
 import org.olo.app.store.RunEventBroadcaster;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,17 +31,20 @@ public class RunEventHandler {
     private final ExecutionEventStore eventStore;
     private final RunEventBroadcaster broadcaster;
     private final ChatRunStore runStore;
+    private final KnowledgeSourceStore knowledgeSourceStore;
     private final RunAssistantPersistence assistantPersistence;
     private final RunHumanStepPersistence humanStepPersistence;
 
     public RunEventHandler(ExecutionEventStore eventStore,
                            RunEventBroadcaster broadcaster,
                            ChatRunStore runStore,
+                           KnowledgeSourceStore knowledgeSourceStore,
                            RunAssistantPersistence assistantPersistence,
                            RunHumanStepPersistence humanStepPersistence) {
         this.eventStore = eventStore;
         this.broadcaster = broadcaster;
         this.runStore = runStore;
+        this.knowledgeSourceStore = knowledgeSourceStore;
         this.assistantPersistence = assistantPersistence;
         this.humanStepPersistence = humanStepPersistence;
     }
@@ -59,6 +63,7 @@ public class RunEventHandler {
         eventStore.append(runId, event);
         String derivedStatus = deriveRunStatus(eventStore.getEvents(runId));
         runStore.setStatus(runId, derivedStatus);
+        knowledgeSourceStore.updateFromEvent(runId, event, derivedStatus);
 
         humanStepPersistence.handleHumanStepEvent(runId, event);
         // Persist assistant response BEFORE broadcast so client refetch sees it when event arrives.

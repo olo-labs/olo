@@ -34,8 +34,10 @@ public class RagIngestController {
     @Schema(description = "Start RAG indexing for uploaded documents")
     public record RagIngestRequest(
             @Schema(description = "Tenant id", example = "default") String tenantId,
+            @Schema(description = "Knowledge source type", example = "files") String sourceType,
             @Schema(description = "Upload folder key / RAG collection id", example = "finance-rag", requiredMode = Schema.RequiredMode.REQUIRED)
             String capabilitySource,
+            @Schema(description = "Final tokenized knowledge source name", example = "finance-q3-index") String knowledgeName,
             @Schema(description = "File names to index (empty = all files in source)") List<String> fileNames,
             @Schema(description = "Temporal task queue override") String taskQueue,
             @Schema(description = "Workflow pipeline id", example = "documents-index") String pipelineId) {}
@@ -45,7 +47,9 @@ public class RagIngestController {
     public ResponseEntity<Map<String, Object>> ingest(@RequestBody RagIngestRequest body) throws Exception {
         Map<String, Object> result = ragIngestService.startIngest(
                 body.tenantId(),
+                body.sourceType(),
                 body.capabilitySource(),
+                body.knowledgeName(),
                 body.fileNames(),
                 body.taskQueue(),
                 body.pipelineId());
@@ -53,10 +57,16 @@ public class RagIngestController {
         return ok ? ResponseEntity.ok(result) : ResponseEntity.badRequest().body(result);
     }
 
-    @Operation(summary = "List knowledge sources", description = "Capability sources with uploaded file counts")
+    @Operation(summary = "List knowledge sources", description = "Executed knowledge sources with indexing status")
     @GetMapping("/knowledge/sources")
     public ResponseEntity<List<Map<String, Object>>> listKnowledgeSources() {
         return ResponseEntity.ok(ragIngestService.listKnowledgeSources());
+    }
+
+    @Operation(summary = "List knowledge source collections", description = "Raw uploaded source collections available for indexing")
+    @GetMapping("/knowledge/source-collections")
+    public ResponseEntity<List<Map<String, Object>>> listKnowledgeSourceCollections() {
+        return ResponseEntity.ok(ragIngestService.listKnowledgeSourceCollections());
     }
 
     @Operation(summary = "List uploaded documents", description = "Files stored for a capability source")

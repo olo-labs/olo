@@ -79,6 +79,8 @@ public class ResourceUploadController {
                 : List.of(body.fileName().trim());
         Map<String, Object> result = ragIngestService.startIngest(
                 "default",
+                "files",
+                src,
                 src,
                 files,
                 null,

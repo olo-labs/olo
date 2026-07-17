@@ -11,6 +11,7 @@ import org.olo.app.domain.EventType;
 import org.olo.app.service.impl.run.RunEventHandler;
 import org.olo.app.service.impl.run.RunWorkflowStarter;
 import org.olo.app.store.ChatRunStore;
+import org.olo.app.store.KnowledgeSourceStore;
 import org.olo.app.workflow.impl.WorkflowInputSerializer;
 import org.olo.input.model.WorkflowInput;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -28,6 +29,7 @@ public class RagIngestService {
     private final RunWorkflowStarter workflowStarter;
     private final RunEventHandler eventHandler;
     private final ChatRunStore runStore;
+    private final KnowledgeSourceStore knowledgeSourceStore;
     private final ResourceUploadService resourceUploadService;
     private final String defaultTaskQueue;
     private final String defaultPipeline;
@@ -38,6 +40,7 @@ public class RagIngestService {
     public RagIngestService(RunWorkflowStarter workflowStarter,
                             RunEventHandler eventHandler,
                             ChatRunStore runStore,
+                            KnowledgeSourceStore knowledgeSourceStore,
                             ResourceUploadService resourceUploadService,
                             @Qualifier("oloTaskQueue") String defaultTaskQueue,
                             @Value("${olo.rag.ingest.pipeline:documents-index}") String defaultPipeline,
@@ -46,6 +49,7 @@ public class RagIngestService {
         this.workflowStarter = workflowStarter;
         this.eventHandler = eventHandler;
         this.runStore = runStore;
+        this.knowledgeSourceStore = knowledgeSourceStore;
         this.resourceUploadService = resourceUploadService;
         this.defaultTaskQueue = defaultTaskQueue;
         this.defaultPipeline = defaultPipeline;
@@ -55,7 +59,9 @@ public class RagIngestService {
 
     public Map<String, Object> startIngest(
             String tenantId,
+            String sourceType,
             String capabilitySource,
+            String knowledgeName,
             List<String> fileNames,
             String taskQueue,
             String pipelineId) throws JsonProcessingException {
@@ -73,6 +79,8 @@ public class RagIngestService {
         String runId = UUID.randomUUID().toString();
         String correlationId = UUID.randomUUID().toString();
         String effectiveTenant = tenantId == null || tenantId.isBlank() ? "default" : tenantId.trim();
+        String effectiveSourceType = sourceType == null || sourceType.isBlank() ? "files" : sourceType.trim();
+        String effectiveKnowledgeName = knowledgeName == null || knowledgeName.isBlank() ? source : knowledgeName.trim();
         String effectiveQueue = taskQueue == null || taskQueue.isBlank()
                 ? (ragIngestQueue.isBlank() ? defaultTaskQueue : ragIngestQueue)
                 : taskQueue.trim();
@@ -88,8 +96,20 @@ public class RagIngestService {
                 null,
                 null));
 
+        knowledgeSourceStore.putStarted(new KnowledgeSourceStore.KnowledgeSourceRecord(
+                runId,
+                effectiveTenant,
+                effectiveSourceType,
+                source,
+                effectiveKnowledgeName,
+                resolvedFiles,
+                effectivePipeline,
+                effectiveQueue));
+
         Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sourceType", effectiveSourceType);
         payload.put("capabilitySource", source);
+        payload.put("knowledgeName", effectiveKnowledgeName);
         payload.put("ragTag", source);
         if (!resolvedFiles.isEmpty()) {
             payload.put("fileNames", resolvedFiles);
@@ -103,9 +123,16 @@ public class RagIngestService {
                 null,
                 "SYSTEM",
                 "STARTED",
-                Map.of("type", "rag-ingest", "capabilitySource", source, "fileCount", resolvedFiles.size()),
+                Map.of("type", "rag-ingest",
+                        "sourceType", effectiveSourceType,
+                        "capabilitySource", source,
+                        "knowledgeName", effectiveKnowledgeName,
+                        "fileCount", resolvedFiles.size()),
                 null,
-                Map.of("tenantId", effectiveTenant, "capabilitySource", source),
+                Map.of("tenantId", effectiveTenant,
+                        "sourceType", effectiveSourceType,
+                        "capabilitySource", source,
+                        "knowledgeName", effectiveKnowledgeName),
                 null,
                 null,
                 EventType.NODE_STARTED,
@@ -127,6 +154,8 @@ public class RagIngestService {
         body.put("success", true);
         body.put("runId", runId);
         body.put("capabilitySource", source);
+        body.put("sourceType", effectiveSourceType);
+        body.put("knowledgeName", effectiveKnowledgeName);
         body.put("pipeline", effectivePipeline);
         body.put("taskQueue", effectiveQueue);
         body.put("files", resolvedFiles);
@@ -134,6 +163,10 @@ public class RagIngestService {
     }
 
     public List<Map<String, Object>> listKnowledgeSources() {
+        return knowledgeSourceStore.list();
+    }
+
+    public List<Map<String, Object>> listKnowledgeSourceCollections() {
         return resourceUploadService.listCapabilitySources();
     }
 
