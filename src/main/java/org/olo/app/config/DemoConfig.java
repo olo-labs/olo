@@ -13,6 +13,8 @@ import org.olo.app.ws.JwtTenantExtractor;
 import org.olo.app.ws.RunEventWebSocketHandler;
 import org.olo.app.ws.RunEventWebSocketRegistry;
 import org.olo.app.ws.WebSocketAuthHandshakeHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
 import org.olo.temporal.sdk.TemporalClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +26,8 @@ import java.util.concurrent.Executors;
 
 @Configuration
 public class DemoConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(DemoConfig.class);
 
     @Value("${olo.temporal.target:localhost:7233}")
     private String temporalTarget;
@@ -91,6 +95,7 @@ public class DemoConfig {
 
     @Bean(name = "oloCallbackBaseUrl")
     public String callbackBaseUrl(@Value("${olo.chat.callback-base-url:http://localhost:7080}") String callbackBaseUrl) {
+        log.info("Olo worker callback base URL: {}", callbackBaseUrl);
         return callbackBaseUrl;
     }
 
