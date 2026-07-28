@@ -163,18 +163,85 @@ public class RunAssistantPersistence {
             if (value instanceof String s) {
                 String trimmed = s.trim();
                 if (!trimmed.isEmpty()) {
-                    return trimmed;
+                    return normalizeResponseText(trimmed);
                 }
+            }
+        }
+        Object summary = output.get("summary");
+        if (summary instanceof String s) {
+            String formatted = formatConversationSummary(s);
+            if (formatted != null) {
+                return formatted;
             }
         }
         Object returnValue = output.get("returnValue");
         if (returnValue != null) {
-            String s = String.valueOf(returnValue).trim();
-            if (!s.isEmpty() && !"null".equals(s)) {
+            if (returnValue instanceof Map<?, ?> map) {
+                Object nestedSummary = map.get("summary");
+                if (nestedSummary instanceof String s) {
+                    String formatted = formatConversationSummary(s);
+                    if (formatted != null) {
+                        return formatted;
+                    }
+                }
+            }
+            String s = normalizeResponseText(String.valueOf(returnValue).trim());
+            if (!s.isEmpty() && !"null".equals(s) && !"undefined".equals(s)) {
                 return s;
             }
         }
         return null;
+    }
+
+    private static String normalizeResponseText(String text) {
+        if (text == null || text.isBlank()) {
+            return "";
+        }
+        String normalizedMap = normalizeJavaMapText(text.trim());
+        return normalizedMap != null ? normalizedMap : text.trim();
+    }
+
+    private static String normalizeJavaMapText(String text) {
+        if (text == null || !text.startsWith("{") || !text.endsWith("}") || !text.contains("=")) {
+            return null;
+        }
+        String summary = extractJavaMapValue(text, "summary");
+        if (summary != null) {
+            return formatConversationSummary(summary);
+        }
+        String response = extractJavaMapValue(text, "response");
+        if (response == null) {
+            response = extractJavaMapValue(text, "message");
+        }
+        return response == null || response.isBlank() ? null : response.trim();
+    }
+
+    private static String extractJavaMapValue(String text, String key) {
+        String marker = key + "=";
+        int start = text.indexOf(marker);
+        if (start < 0) {
+            return null;
+        }
+        int valueStart = start + marker.length();
+        String tail = text.substring(valueStart);
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile(",\\s*[A-Za-z][A-Za-z0-9_]*=")
+                .matcher(tail);
+        int end = matcher.find() ? valueStart + matcher.start() : text.length();
+        String value = text.substring(valueStart, end).replaceFirst("}$", "").trim();
+        return value.isBlank() ? null : value;
+    }
+
+    private static String formatConversationSummary(String summary) {
+        if (summary == null || summary.isBlank()) {
+            return null;
+        }
+        String formatted = summary.trim()
+                .replaceAll("(?i)\\s+assistant:\\s*", "\n\nAssistant: ")
+                .replaceAll("(?i)^user:\\s*", "User: ")
+                .replaceAll("(?i)\\s+user:\\s*", "\n\nUser: ")
+                .trim();
+        return formatted.isBlank() ? null : formatted;
     }
 
     private static boolean isMetadataOnlyWorkflowOutput(Map<String, Object> output) {

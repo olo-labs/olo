@@ -12,14 +12,23 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.MalformedURLException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +74,32 @@ public class ResourceUploadController {
     }
 
     public record ReprocessRequest(String capabilitySource, String ragId, String fileName) {}
+
+    @Operation(summary = "View uploaded file", description = "Return raw bytes for one uploaded file")
+    @GetMapping("/api/resource/source/{capabilitySource}/file/{fileName}")
+    public ResponseEntity<Resource> viewFile(
+            @PathVariable String capabilitySource,
+            @PathVariable String fileName) throws MalformedURLException {
+        Path file = resourceUploadService.resolveUploadedFile(capabilitySource, fileName);
+        if (file == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Resource resource = new UrlResource(file.toUri());
+        MediaType mediaType = MediaTypeFactory.getMediaType(file.getFileName().toString())
+                .orElse(MediaType.APPLICATION_OCTET_STREAM);
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getFileName() + "\"")
+                .body(resource);
+    }
+
+    @Operation(summary = "Delete uploaded source", description = "Delete all raw files for one capability source")
+    @DeleteMapping("/api/resource/source/{capabilitySource}")
+    public ResponseEntity<Map<String, Object>> deleteSource(@PathVariable String capabilitySource) {
+        Map<String, Object> result = resourceUploadService.deleteCapabilitySource(capabilitySource);
+        boolean ok = Boolean.TRUE.equals(result.get("success"));
+        return ok ? ResponseEntity.ok(result) : ResponseEntity.badRequest().body(result);
+    }
 
     @Operation(summary = "Reprocess uploaded file", description = "JSON: capabilitySource (or legacy ragId), fileName")
     @PostMapping(value = "/api/resource/reprocess", consumes = MediaType.APPLICATION_JSON_VALUE)

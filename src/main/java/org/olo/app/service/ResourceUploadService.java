@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -205,6 +206,56 @@ public class ResourceUploadService {
             log.warn("listUploadedFiles failed for {}: {}", capabilitySource, e.getMessage());
             return List.of();
         }
+    }
+
+    public Map<String, Object> deleteCapabilitySource(String capabilitySource) {
+        if (capabilitySource == null || capabilitySource.isBlank()) {
+            return Map.of("success", false, "message", "capabilitySource is required");
+        }
+        Path dir = baseDir.resolve(safeCapabilitySegment(capabilitySource)).normalize();
+        if (!dir.startsWith(baseDir)) {
+            return Map.of("success", false, "message", "Invalid capabilitySource");
+        }
+        if (!Files.exists(dir)) {
+            return Map.of("success", true, "capabilitySource", capabilitySource.trim(), "deletedFiles", 0);
+        }
+        if (!Files.isDirectory(dir)) {
+            return Map.of("success", false, "message", "Capability source is not a directory");
+        }
+        try {
+            long deletedFiles;
+            try (var countStream = Files.walk(dir)) {
+                deletedFiles = countStream.filter(Files::isRegularFile).count();
+            }
+            try (var deleteStream = Files.walk(dir)) {
+                for (Path path : deleteStream.sorted(Comparator.reverseOrder()).toList()) {
+                    Files.deleteIfExists(path);
+                }
+            }
+            log.info("resource upload source deleted: capabilitySource={} path={} deletedFiles={}",
+                    capabilitySource, dir, deletedFiles);
+            return Map.of(
+                    "success", true,
+                    "capabilitySource", capabilitySource.trim(),
+                    "deletedFiles", deletedFiles);
+        } catch (IOException e) {
+            log.warn("deleteCapabilitySource failed for {}: {}", capabilitySource, e.getMessage());
+            return Map.of(
+                    "success", false,
+                    "message", "Failed to delete source " + capabilitySource.trim() + ": " + e.getMessage());
+        }
+    }
+
+    public Path resolveUploadedFile(String capabilitySource, String fileName) {
+        if (capabilitySource == null || capabilitySource.isBlank() || fileName == null || fileName.isBlank()) {
+            return null;
+        }
+        Path dir = baseDir.resolve(safeCapabilitySegment(capabilitySource)).normalize();
+        Path file = dir.resolve(safeFileName(fileName)).normalize();
+        if (!dir.startsWith(baseDir) || !file.startsWith(dir) || !Files.isRegularFile(file)) {
+            return null;
+        }
+        return file;
     }
 
     static String safeCapabilitySegment(String s) {
