@@ -90,7 +90,7 @@ Copy `.env.example` to `.env` for local overrides. Key variables:
 | `OLO_CONFIGURATION_DIR` | `../olo-mono/olo-definition/olo-configuration/current-active` | Active workflow JSON folder |
 | `OLO_TEMPORAL_TARGET` | `localhost:7233` | Temporal gRPC target |
 | `OLO_CACHE_HOST` / `OLO_CACHE_PORT` | `localhost` / `46379` | Redis for session persistence |
-| `OLO_CHAT_CALLBACK_BASE_URL` | `http://192.168.0.3:7080` for `bootRun`; app fallback `http://localhost:7080` | URL workers use to POST run events. When workers run in Docker and backend runs on this PC, use this PC's LAN IP. |
+| `OLO_CHAT_CALLBACK_BASE_URL` | `http://192.168.0.114:7080` for `bootRun`; app fallback `http://localhost:7080` | URL workers use to POST run events. When workers run in Docker and backend runs on this PC, use this PC's LAN IP. |
 | `OLO_WS_JWT_REQUIRED` | `false` | WebSocket JWT validation (set `true` in production) |
 
 See `.env.example` for the full list.

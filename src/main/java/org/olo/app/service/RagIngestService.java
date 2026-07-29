@@ -33,7 +33,9 @@ public class RagIngestService {
     private final ResourceUploadService resourceUploadService;
     private final String defaultTaskQueue;
     private final String defaultPipeline;
+    private final String defaultDeletePipeline;
     private final String ragIngestQueue;
+    private final String ragDeleteQueue;
     private final String callbackBaseUrl;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -44,7 +46,9 @@ public class RagIngestService {
                             ResourceUploadService resourceUploadService,
                             @Qualifier("oloTaskQueue") String defaultTaskQueue,
                             @Value("${olo.rag.ingest.pipeline:documents-index}") String defaultPipeline,
+                            @Value("${olo.rag.delete.pipeline:documents-delete}") String defaultDeletePipeline,
                             @Value("${olo.rag.ingest.queue:}") String ragIngestQueue,
+                            @Value("${olo.rag.delete.queue:}") String ragDeleteQueue,
                             @Qualifier("oloCallbackBaseUrl") String callbackBaseUrl) {
         this.workflowStarter = workflowStarter;
         this.eventHandler = eventHandler;
@@ -53,7 +57,9 @@ public class RagIngestService {
         this.resourceUploadService = resourceUploadService;
         this.defaultTaskQueue = defaultTaskQueue;
         this.defaultPipeline = defaultPipeline;
+        this.defaultDeletePipeline = defaultDeletePipeline;
         this.ragIngestQueue = ragIngestQueue == null ? "" : ragIngestQueue.trim();
+        this.ragDeleteQueue = ragDeleteQueue == null ? "" : ragDeleteQueue.trim();
         this.callbackBaseUrl = callbackBaseUrl;
     }
 
@@ -159,6 +165,93 @@ public class RagIngestService {
         body.put("pipeline", effectivePipeline);
         body.put("taskQueue", effectiveQueue);
         body.put("files", resolvedFiles);
+        return body;
+    }
+
+    public Map<String, Object> startDelete(
+            String tenantId,
+            String sourceType,
+            String knowledgeName,
+            String sourceCollection,
+            String taskQueue,
+            String pipelineId) throws JsonProcessingException {
+
+        String target = knowledgeName == null ? "" : knowledgeName.trim();
+        if (target.isEmpty()) {
+            return Map.of("success", false, "message", "knowledgeName is required");
+        }
+
+        String runId = UUID.randomUUID().toString();
+        String correlationId = UUID.randomUUID().toString();
+        String effectiveTenant = tenantId == null || tenantId.isBlank() ? "default" : tenantId.trim();
+        String effectiveSourceType = sourceType == null || sourceType.isBlank() ? "files" : sourceType.trim();
+        String effectiveSourceCollection = sourceCollection == null ? "" : sourceCollection.trim();
+        String effectiveQueue = taskQueue == null || taskQueue.isBlank()
+                ? (ragDeleteQueue.isBlank() ? defaultTaskQueue : ragDeleteQueue)
+                : taskQueue.trim();
+        String effectivePipeline = pipelineId == null || pipelineId.isBlank()
+                ? defaultDeletePipeline
+                : pipelineId.trim();
+
+        runStore.put(new ChatRunStore.RunRecord(
+                runId,
+                "rag-delete",
+                runId,
+                effectiveTenant,
+                correlationId,
+                null,
+                null,
+                null));
+        knowledgeSourceStore.markDeleteStarted(runId, target);
+
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("action", "delete-rag");
+        payload.put("sourceType", effectiveSourceType);
+        payload.put("knowledgeName", target);
+        payload.put("ragTag", target);
+        if (!effectiveSourceCollection.isBlank()) {
+            payload.put("sourceCollection", effectiveSourceCollection);
+        }
+        String payloadJson = objectMapper.writeValueAsString(payload);
+
+        eventHandler.appendEvent(
+                runId,
+                "root",
+                null,
+                "SYSTEM",
+                "STARTED",
+                Map.of("type", "rag-delete",
+                        "sourceType", effectiveSourceType,
+                        "knowledgeName", target),
+                null,
+                Map.of("tenantId", effectiveTenant,
+                        "sourceType", effectiveSourceType,
+                        "knowledgeName", target),
+                null,
+                null,
+                EventType.NODE_STARTED,
+                correlationId);
+
+        WorkflowInput workflowInput = WorkflowInputSerializer.buildRagDelete(
+                effectiveTenant,
+                target,
+                payloadJson,
+                effectivePipeline,
+                runId,
+                runId,
+                callbackBaseUrl,
+                correlationId);
+
+        workflowStarter.startWorkflow(runId, workflowInput, effectiveQueue);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", true);
+        body.put("runId", runId);
+        body.put("sourceType", effectiveSourceType);
+        body.put("knowledgeName", target);
+        body.put("sourceCollection", effectiveSourceCollection);
+        body.put("pipeline", effectivePipeline);
+        body.put("taskQueue", effectiveQueue);
         return body;
     }
 

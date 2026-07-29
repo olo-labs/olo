@@ -57,12 +57,18 @@ public class KnowledgeSourceStore {
     }
 
     private final Map<String, KnowledgeSourceRecord> byRunId = new ConcurrentHashMap<>();
+    private final Map<String, String> deleteRunTargets = new ConcurrentHashMap<>();
 
     public void putStarted(KnowledgeSourceRecord record) {
         byRunId.put(record.runId, record);
     }
 
     public void updateFromEvent(String runId, OloExecutionEvent event, String runStatus) {
+        String deleteTarget = deleteRunTargets.get(runId);
+        if (deleteTarget != null) {
+            updateDeleteFromEvent(runId, deleteTarget, event, runStatus);
+            return;
+        }
         KnowledgeSourceRecord record = byRunId.get(runId);
         if (record == null) {
             return;
@@ -70,6 +76,40 @@ public class KnowledgeSourceStore {
         record.status = toKnowledgeStatus(runStatus, event);
         record.message = eventMessage(event, record.status);
         record.updatedAt = System.currentTimeMillis();
+    }
+
+    public void markDeleteStarted(String runId, String knowledgeName) {
+        if (runId == null || runId.isBlank() || knowledgeName == null || knowledgeName.isBlank()) {
+            return;
+        }
+        String target = knowledgeName.trim();
+        deleteRunTargets.put(runId, target);
+        for (KnowledgeSourceRecord record : byRunId.values()) {
+            if (target.equals(record.knowledgeName)) {
+                record.status = "in_progress";
+                record.message = "Deleting knowledge source";
+                record.updatedAt = System.currentTimeMillis();
+            }
+        }
+    }
+
+    private void updateDeleteFromEvent(String runId, String knowledgeName, OloExecutionEvent event, String runStatus) {
+        if ("completed".equalsIgnoreCase(runStatus)) {
+            byRunId.entrySet().removeIf(entry -> knowledgeName.equals(entry.getValue().knowledgeName));
+            deleteRunTargets.remove(runId);
+            return;
+        }
+        String status = toKnowledgeStatus(runStatus, event);
+        for (KnowledgeSourceRecord record : byRunId.values()) {
+            if (knowledgeName.equals(record.knowledgeName)) {
+                record.status = status;
+                record.message = "failed".equals(status) ? "Delete failed" : "Deleting knowledge source";
+                record.updatedAt = System.currentTimeMillis();
+            }
+        }
+        if ("failed".equals(status)) {
+            deleteRunTargets.remove(runId);
+        }
     }
 
     public List<Map<String, Object>> list() {

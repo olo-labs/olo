@@ -42,6 +42,16 @@ public class RagIngestController {
             @Schema(description = "Temporal task queue override") String taskQueue,
             @Schema(description = "Workflow pipeline id", example = "documents-index") String pipelineId) {}
 
+    @Schema(description = "Start RAG deletion for a tokenized knowledge source")
+    public record RagDeleteRequest(
+            @Schema(description = "Tenant id", example = "default") String tenantId,
+            @Schema(description = "Knowledge source type", example = "files") String sourceType,
+            @Schema(description = "Final tokenized knowledge source name", example = "finance-q3-index", requiredMode = Schema.RequiredMode.REQUIRED)
+            String knowledgeName,
+            @Schema(description = "Original source collection, when known", example = "finance-uploads") String sourceCollection,
+            @Schema(description = "Temporal task queue override") String taskQueue,
+            @Schema(description = "Delete workflow pipeline id", example = "documents-delete") String pipelineId) {}
+
     @Operation(summary = "Start RAG ingest workflow", description = "Indexes selected uploaded files via documents-index Temporal pipeline")
     @PostMapping("/rag/ingest")
     public ResponseEntity<Map<String, Object>> ingest(@RequestBody RagIngestRequest body) throws Exception {
@@ -51,6 +61,20 @@ public class RagIngestController {
                 body.capabilitySource(),
                 body.knowledgeName(),
                 body.fileNames(),
+                body.taskQueue(),
+                body.pipelineId());
+        boolean ok = Boolean.TRUE.equals(result.get("success"));
+        return ok ? ResponseEntity.ok(result) : ResponseEntity.badRequest().body(result);
+    }
+
+    @Operation(summary = "Start RAG delete workflow", description = "Deletes a tokenized knowledge source via a dedicated Temporal pipeline")
+    @PostMapping("/rag/delete")
+    public ResponseEntity<Map<String, Object>> delete(@RequestBody RagDeleteRequest body) throws Exception {
+        Map<String, Object> result = ragIngestService.startDelete(
+                body.tenantId(),
+                body.sourceType(),
+                body.knowledgeName(),
+                body.sourceCollection(),
                 body.taskQueue(),
                 body.pipelineId());
         boolean ok = Boolean.TRUE.equals(result.get("success"));

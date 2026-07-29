@@ -57,5 +57,5 @@ tasks.named('test') {
 
 tasks.named('bootRun') {
     environment 'OLO_CHAT_CALLBACK_BASE_URL',
-            System.getenv('OLO_CHAT_CALLBACK_BASE_URL') ?: 'http://192.168.0.3:7080'
+            System.getenv('OLO_CHAT_CALLBACK_BASE_URL') ?: 'http://192.168.0.114:7080'
 }

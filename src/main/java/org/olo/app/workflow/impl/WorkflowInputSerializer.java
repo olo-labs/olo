@@ -143,4 +143,53 @@ public final class WorkflowInputSerializer {
                 .metadata(metadata)
                 .build();
     }
+
+    /**
+     * Builds workflow input for deleting a tokenized RAG/knowledge entry.
+     */
+    public static WorkflowInput buildRagDelete(String tenantId,
+                                               String knowledgeName,
+                                               String payloadJson,
+                                               String pipeline,
+                                               String transactionId,
+                                               String runId,
+                                               String callbackBaseUrl,
+                                               String correlationId) {
+        String payload = payloadJson != null ? payloadJson : "{}";
+
+        InputItem deleteInput = new InputItem(
+                USER_QUERY_INPUT_NAME,
+                "RAG delete request",
+                InputType.STRING,
+                new Storage(StorageMode.LOCAL, null, null),
+                payload
+        );
+
+        Context context = new Context(
+                tenantId != null ? tenantId : "default",
+                "",
+                List.of("PUBLIC"),
+                Collections.emptyList(),
+                "rag-delete",
+                runId != null ? runId : "",
+                callbackBaseUrl != null ? callbackBaseUrl : "",
+                correlationId != null ? correlationId : ""
+        );
+
+        Routing routing = new Routing(
+                pipeline != null && !pipeline.isBlank() ? pipeline : "documents-delete",
+                TransactionType.WORKFLOW_RUN,
+                transactionId != null ? transactionId : ""
+        );
+
+        Metadata metadata = new Metadata(knowledgeName, System.currentTimeMillis());
+
+        return WorkflowInput.builder()
+                .version(VERSION)
+                .addInput(deleteInput)
+                .context(context)
+                .routing(routing)
+                .metadata(metadata)
+                .build();
+    }
 }

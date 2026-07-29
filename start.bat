@@ -38,7 +38,7 @@ if exist ".env" (
 )
 
 if not defined OLO_CHAT_CALLBACK_BASE_URL (
-  set "OLO_CHAT_CALLBACK_BASE_URL=http://192.168.0.3:7080"
+  set "OLO_CHAT_CALLBACK_BASE_URL=http://192.168.0.114:7080"
 )
 echo   Callback: %OLO_CHAT_CALLBACK_BASE_URL%
 echo.
