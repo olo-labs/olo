@@ -1,0 +1,3 @@
+[submodule "olo-mono"]
+	path = olo-mono
+	url = git@github.com:olo-labs/olo-mono.git
