@@ -6,6 +6,7 @@
 package org.olo.app.workflow.impl;
 
 import org.olo.input.model.Context;
+import org.olo.input.model.IdentityBinding;
 import org.olo.input.model.InputItem;
 import org.olo.input.model.InputType;
 import org.olo.input.model.Metadata;
@@ -55,6 +56,25 @@ public final class WorkflowInputSerializer {
                                      String callbackBaseUrl,
                                      String correlationId,
                                      String ragTag) {
+        return build(tenantId, sessionId, messageId, userMessage, pipeline, transactionId, runId, callbackBaseUrl, correlationId,
+                ragTag, null);
+    }
+
+    /**
+     * @param identity the verified user the run acts for (M3.3): a non-secret reference the worker exchanges at the backend
+     *                 for a ToolGate user credential. Null for runs that act for no user.
+     */
+    public static WorkflowInput build(String tenantId,
+                                     String sessionId,
+                                     String messageId,
+                                     String userMessage,
+                                     String pipeline,
+                                     String transactionId,
+                                     String runId,
+                                     String callbackBaseUrl,
+                                     String correlationId,
+                                     String ragTag,
+                                     IdentityBinding identity) {
         String userMessageSafe = userMessage != null ? userMessage : "";
 
         InputItem userQueryInput = new InputItem(
@@ -73,7 +93,8 @@ public final class WorkflowInputSerializer {
                 sessionId != null ? sessionId : "",
                 runId != null ? runId : "",
                 callbackBaseUrl != null ? callbackBaseUrl : "",
-                correlationId != null ? correlationId : ""
+                correlationId != null ? correlationId : "",
+                identity
         );
 
         Routing routing = new Routing(
