@@ -6,6 +6,7 @@
 package org.olo.app.service;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.olo.app.tenant.TenantScopedName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +24,16 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
+/**
+ * Raw uploaded files, stored per tenant (M3.11).
+ *
+ * <p>Callers pass the verified tenant and a plain capability source name. Files live in
+ * {@code <baseDir>/<TenantScopedName.qualify(tenant, source)>/}, so one tenant can never read, list or delete another
+ * tenant's files, and the worker (which mounts {@code baseDir}) sees the same tenant-qualified folder names it is
+ * given in workflow input.
+ */
 @Service
 public class ResourceUploadService {
 
@@ -37,6 +47,7 @@ public class ResourceUploadService {
 
     public Map<String, Object> saveUpload(
             HttpServletRequest request,
+            String tenantId,
             String resolvedCapabilitySource,
             List<MultipartFile> files,
             String taskQueue,
@@ -49,9 +60,10 @@ public class ResourceUploadService {
         }
 
         log.info(
-                "resource upload start: remote={} requestId={} capabilitySource={} fileCount={} taskQueue={} pipelineId={} baseDir={}",
+                "resource upload start: remote={} requestId={} tenant={} capabilitySource={} fileCount={} taskQueue={} pipelineId={} baseDir={}",
                 remote,
                 reqId,
+                tenantId,
                 resolvedCapabilitySource,
                 files == null ? 0 : files.size(),
                 taskQueue == null || taskQueue.isBlank() ? "-" : taskQueue,
@@ -72,9 +84,11 @@ public class ResourceUploadService {
             return Map.of("success", false, "message", "At least one file is required");
         }
 
-        Path destRoot;
+        Path destRoot = sourceDir(tenantId, resolvedCapabilitySource);
+        if (destRoot == null) {
+            return Map.of("success", false, "message", "Invalid capabilitySource");
+        }
         try {
-            destRoot = baseDir.resolve(safeCapabilitySegment(resolvedCapabilitySource));
             Files.createDirectories(destRoot);
             log.info("resource upload target directory ready: {}", destRoot);
         } catch (IOException e) {
@@ -108,7 +122,10 @@ public class ResourceUploadService {
                     contentType);
 
             String safeName = safeFileName(originalName);
-            Path target = destRoot.resolve(safeName);
+            Path target = destRoot.resolve(safeName).normalize();
+            if (!target.startsWith(destRoot)) {
+                return Map.of("success", false, "message", "Invalid file name " + safeName);
+            }
             try {
                 try (InputStream in = mf.getInputStream()) {
                     Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
@@ -151,7 +168,8 @@ public class ResourceUploadService {
         return body;
     }
 
-    public List<Map<String, Object>> listCapabilitySources() {
+    /** The tenant's capability sources, by plain name. Other tenants' folders are never listed. */
+    public List<Map<String, Object>> listCapabilitySources(String tenantId) {
         try {
             if (!Files.isDirectory(baseDir)) {
                 return List.of();
@@ -159,10 +177,13 @@ public class ResourceUploadService {
             List<Map<String, Object>> sources = new ArrayList<>();
             try (var stream = Files.list(baseDir)) {
                 for (Path child : stream.filter(Files::isDirectory).toList()) {
-                    String name = child.getFileName().toString();
-                    List<Map<String, Object>> files = listUploadedFiles(name);
+                    Optional<String> name = TenantScopedName.unqualify(tenantId, child.getFileName().toString());
+                    if (name.isEmpty()) {
+                        continue;
+                    }
+                    List<Map<String, Object>> files = listUploadedFiles(tenantId, name.get());
                     sources.add(Map.of(
-                            "capabilitySource", name,
+                            "capabilitySource", name.get(),
                             "fileCount", files.size(),
                             "files", files));
                 }
@@ -176,13 +197,13 @@ public class ResourceUploadService {
         }
     }
 
-    public List<Map<String, Object>> listUploadedFiles(String capabilitySource) {
+    public List<Map<String, Object>> listUploadedFiles(String tenantId, String capabilitySource) {
         if (capabilitySource == null || capabilitySource.isBlank()) {
             return List.of();
         }
         try {
-            Path dir = baseDir.resolve(safeCapabilitySegment(capabilitySource));
-            if (!Files.isDirectory(dir)) {
+            Path dir = sourceDir(tenantId, capabilitySource);
+            if (dir == null || !Files.isDirectory(dir)) {
                 return List.of();
             }
             List<Map<String, Object>> files = new ArrayList<>();
@@ -208,12 +229,12 @@ public class ResourceUploadService {
         }
     }
 
-    public Map<String, Object> deleteCapabilitySource(String capabilitySource) {
+    public Map<String, Object> deleteCapabilitySource(String tenantId, String capabilitySource) {
         if (capabilitySource == null || capabilitySource.isBlank()) {
             return Map.of("success", false, "message", "capabilitySource is required");
         }
-        Path dir = baseDir.resolve(safeCapabilitySegment(capabilitySource)).normalize();
-        if (!dir.startsWith(baseDir)) {
+        Path dir = sourceDir(tenantId, capabilitySource);
+        if (dir == null) {
             return Map.of("success", false, "message", "Invalid capabilitySource");
         }
         if (!Files.exists(dir)) {
@@ -246,16 +267,26 @@ public class ResourceUploadService {
         }
     }
 
-    public Path resolveUploadedFile(String capabilitySource, String fileName) {
+    public Path resolveUploadedFile(String tenantId, String capabilitySource, String fileName) {
         if (capabilitySource == null || capabilitySource.isBlank() || fileName == null || fileName.isBlank()) {
             return null;
         }
-        Path dir = baseDir.resolve(safeCapabilitySegment(capabilitySource)).normalize();
+        Path dir = sourceDir(tenantId, capabilitySource);
+        if (dir == null) {
+            return null;
+        }
         Path file = dir.resolve(safeFileName(fileName)).normalize();
-        if (!dir.startsWith(baseDir) || !file.startsWith(dir) || !Files.isRegularFile(file)) {
+        if (!file.startsWith(dir) || !Files.isRegularFile(file)) {
             return null;
         }
         return file;
+    }
+
+    /** The tenant's folder for a plain source name, or {@code null} if it would fall outside {@code baseDir}. */
+    private Path sourceDir(String tenantId, String capabilitySource) {
+        String stored = safeCapabilitySegment(TenantScopedName.qualify(tenantId, capabilitySource));
+        Path dir = baseDir.resolve(stored).normalize();
+        return dir.startsWith(baseDir) && !dir.equals(baseDir) ? dir : null;
     }
 
     static String safeCapabilitySegment(String s) {

@@ -5,6 +5,7 @@
 
 package org.olo.app.store;
 
+import org.olo.app.tenant.TenantScopedName;
 import org.olo.app.domain.NodeStatus;
 import org.olo.app.domain.OloExecutionEvent;
 
@@ -112,10 +113,23 @@ public class KnowledgeSourceStore {
         }
     }
 
-    public List<Map<String, Object>> list() {
-        List<KnowledgeSourceRecord> records = new ArrayList<>(byRunId.values());
+    /**
+     * The tenant's knowledge sources, newest first, with plain names. Records of other tenants are never returned.
+     * Stored names are tenant-qualified ({@link TenantScopedName}).
+     */
+    public List<Map<String, Object>> list(String tenantId) {
+        List<KnowledgeSourceRecord> records = new ArrayList<>();
+        for (KnowledgeSourceRecord record : byRunId.values()) {
+            if (tenantId != null && tenantId.equals(record.tenantId)) {
+                records.add(record);
+            }
+        }
         records.sort((a, b) -> Long.compare(b.createdAt, a.createdAt));
         return records.stream().map(this::toMap).toList();
+    }
+
+    private static String plain(String tenantId, String stored) {
+        return TenantScopedName.unqualify(tenantId, stored).orElse(stored);
     }
 
     private Map<String, Object> toMap(KnowledgeSourceRecord record) {
@@ -123,14 +137,16 @@ public class KnowledgeSourceStore {
         row.put("runId", record.runId);
         row.put("tenantId", record.tenantId);
         row.put("sourceType", record.sourceType);
-        row.put("capabilitySource", record.knowledgeName);
-        row.put("displayName", record.knowledgeName);
-        row.put("sourceCollection", record.capabilitySource);
+        String knowledgeName = plain(record.tenantId, record.knowledgeName);
+        String sourceCollection = plain(record.tenantId, record.capabilitySource);
+        row.put("capabilitySource", knowledgeName);
+        row.put("displayName", knowledgeName);
+        row.put("sourceCollection", sourceCollection);
         row.put("fileCount", record.fileNames.size());
         row.put("files", record.fileNames.stream().map(fileName -> {
             Map<String, Object> file = new LinkedHashMap<>();
             file.put("fileName", fileName);
-            file.put("capabilitySource", record.capabilitySource);
+            file.put("capabilitySource", sourceCollection);
             return file;
         }).toList());
         row.put("status", record.status);

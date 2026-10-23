@@ -12,6 +12,7 @@ import org.olo.app.service.impl.run.RunEventHandler;
 import org.olo.app.service.impl.run.RunWorkflowStarter;
 import org.olo.app.store.ChatRunStore;
 import org.olo.app.store.KnowledgeSourceStore;
+import org.olo.app.tenant.TenantScopedName;
 import org.olo.app.workflow.impl.WorkflowInputSerializer;
 import org.olo.input.model.WorkflowInput;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -72,10 +73,13 @@ public class RagIngestService {
             String taskQueue,
             String pipelineId) throws JsonProcessingException {
 
-        String source = capabilitySource == null ? "" : capabilitySource.trim();
-        if (source.isEmpty()) {
+        String plainSource = capabilitySource == null ? "" : capabilitySource.trim();
+        if (plainSource.isEmpty()) {
             return Map.of("success", false, "message", "capabilitySource is required");
         }
+        String effectiveTenant = requireTenant(tenantId);
+        // Workers and the vector store only ever see tenant-qualified names (M3.11).
+        String source = TenantScopedName.qualify(effectiveTenant, plainSource);
 
         List<String> resolvedFiles = fileNames == null ? List.of() : fileNames.stream()
                 .filter(f -> f != null && !f.isBlank())
@@ -84,9 +88,9 @@ public class RagIngestService {
 
         String runId = UUID.randomUUID().toString();
         String correlationId = UUID.randomUUID().toString();
-        String effectiveTenant = tenantId == null || tenantId.isBlank() ? "default" : tenantId.trim();
         String effectiveSourceType = sourceType == null || sourceType.isBlank() ? "files" : sourceType.trim();
-        String effectiveKnowledgeName = knowledgeName == null || knowledgeName.isBlank() ? source : knowledgeName.trim();
+        String plainKnowledgeName = knowledgeName == null || knowledgeName.isBlank() ? plainSource : knowledgeName.trim();
+        String effectiveKnowledgeName = TenantScopedName.qualify(effectiveTenant, plainKnowledgeName);
         String effectiveQueue = taskQueue == null || taskQueue.isBlank()
                 ? (ragIngestQueue.isBlank() ? defaultTaskQueue : ragIngestQueue)
                 : taskQueue.trim();
@@ -159,9 +163,9 @@ public class RagIngestService {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", true);
         body.put("runId", runId);
-        body.put("capabilitySource", source);
+        body.put("capabilitySource", plainSource);
         body.put("sourceType", effectiveSourceType);
-        body.put("knowledgeName", effectiveKnowledgeName);
+        body.put("knowledgeName", plainKnowledgeName);
         body.put("pipeline", effectivePipeline);
         body.put("taskQueue", effectiveQueue);
         body.put("files", resolvedFiles);
@@ -176,16 +180,20 @@ public class RagIngestService {
             String taskQueue,
             String pipelineId) throws JsonProcessingException {
 
-        String target = knowledgeName == null ? "" : knowledgeName.trim();
-        if (target.isEmpty()) {
+        String plainTarget = knowledgeName == null ? "" : knowledgeName.trim();
+        if (plainTarget.isEmpty()) {
             return Map.of("success", false, "message", "knowledgeName is required");
         }
+        String effectiveTenant = requireTenant(tenantId);
+        String target = TenantScopedName.qualify(effectiveTenant, plainTarget);
 
         String runId = UUID.randomUUID().toString();
         String correlationId = UUID.randomUUID().toString();
-        String effectiveTenant = tenantId == null || tenantId.isBlank() ? "default" : tenantId.trim();
         String effectiveSourceType = sourceType == null || sourceType.isBlank() ? "files" : sourceType.trim();
-        String effectiveSourceCollection = sourceCollection == null ? "" : sourceCollection.trim();
+        String plainSourceCollection = sourceCollection == null ? "" : sourceCollection.trim();
+        String effectiveSourceCollection = plainSourceCollection.isEmpty()
+                ? ""
+                : TenantScopedName.qualify(effectiveTenant, plainSourceCollection);
         String effectiveQueue = taskQueue == null || taskQueue.isBlank()
                 ? (ragDeleteQueue.isBlank() ? defaultTaskQueue : ragDeleteQueue)
                 : taskQueue.trim();
@@ -248,22 +256,31 @@ public class RagIngestService {
         body.put("success", true);
         body.put("runId", runId);
         body.put("sourceType", effectiveSourceType);
-        body.put("knowledgeName", target);
-        body.put("sourceCollection", effectiveSourceCollection);
+        body.put("knowledgeName", plainTarget);
+        body.put("sourceCollection", plainSourceCollection);
         body.put("pipeline", effectivePipeline);
         body.put("taskQueue", effectiveQueue);
         return body;
     }
 
-    public List<Map<String, Object>> listKnowledgeSources() {
-        return knowledgeSourceStore.list();
+    /** Knowledge sources of {@code tenantId} only, with plain names. */
+    public List<Map<String, Object>> listKnowledgeSources(String tenantId) {
+        return knowledgeSourceStore.list(requireTenant(tenantId));
     }
 
-    public List<Map<String, Object>> listKnowledgeSourceCollections() {
-        return resourceUploadService.listCapabilitySources();
+    public List<Map<String, Object>> listKnowledgeSourceCollections(String tenantId) {
+        return resourceUploadService.listCapabilitySources(requireTenant(tenantId));
     }
 
-    public List<Map<String, Object>> listDocuments(String capabilitySource) {
-        return resourceUploadService.listUploadedFiles(capabilitySource);
+    public List<Map<String, Object>> listDocuments(String tenantId, String capabilitySource) {
+        return resourceUploadService.listUploadedFiles(requireTenant(tenantId), capabilitySource);
+    }
+
+    /** The verified tenant. There is no default tenant. */
+    private static String requireTenant(String tenantId) {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId is required");
+        }
+        return tenantId.trim();
     }
 }

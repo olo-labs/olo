@@ -5,6 +5,7 @@
 
 package org.olo.app.controller;
 
+import org.olo.app.security.CurrentPrincipal;
 import org.olo.app.service.RagIngestService;
 import org.olo.app.service.ResourceUploadService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -68,7 +69,8 @@ public class ResourceUploadController {
 
         String resolved = resolveCapabilitySource(capabilitySource, ragId);
         List<MultipartFile> list = files == null ? List.of() : Arrays.asList(files);
-        Map<String, Object> body = resourceUploadService.saveUpload(request, resolved, list, taskQueue, pipelineId);
+        Map<String, Object> body = resourceUploadService.saveUpload(
+                request, CurrentPrincipal.require().tenantId(), resolved, list, taskQueue, pipelineId);
         boolean ok = Boolean.TRUE.equals(body.get("success"));
         return ok ? ResponseEntity.ok(body) : ResponseEntity.badRequest().body(body);
     }
@@ -80,7 +82,7 @@ public class ResourceUploadController {
     public ResponseEntity<Resource> viewFile(
             @PathVariable String capabilitySource,
             @PathVariable String fileName) throws MalformedURLException {
-        Path file = resourceUploadService.resolveUploadedFile(capabilitySource, fileName);
+        Path file = resourceUploadService.resolveUploadedFile(CurrentPrincipal.require().tenantId(), capabilitySource, fileName);
         if (file == null) {
             return ResponseEntity.notFound().build();
         }
@@ -96,7 +98,8 @@ public class ResourceUploadController {
     @Operation(summary = "Delete uploaded source", description = "Delete all raw files for one capability source")
     @DeleteMapping("/api/resource/source/{capabilitySource}")
     public ResponseEntity<Map<String, Object>> deleteSource(@PathVariable String capabilitySource) {
-        Map<String, Object> result = resourceUploadService.deleteCapabilitySource(capabilitySource);
+        Map<String, Object> result = resourceUploadService.deleteCapabilitySource(
+                CurrentPrincipal.require().tenantId(), capabilitySource);
         boolean ok = Boolean.TRUE.equals(result.get("success"));
         return ok ? ResponseEntity.ok(result) : ResponseEntity.badRequest().body(result);
     }
@@ -113,7 +116,7 @@ public class ResourceUploadController {
                 ? List.of()
                 : List.of(body.fileName().trim());
         Map<String, Object> result = ragIngestService.startIngest(
-                "default",
+                CurrentPrincipal.require().tenantId(),
                 "files",
                 src,
                 src,

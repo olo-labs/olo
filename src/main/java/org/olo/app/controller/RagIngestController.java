@@ -85,19 +85,19 @@ public class RagIngestController {
     @Operation(summary = "List knowledge sources", description = "Executed knowledge sources with indexing status")
     @GetMapping("/knowledge/sources")
     public ResponseEntity<List<Map<String, Object>>> listKnowledgeSources() {
-        return ResponseEntity.ok(ragIngestService.listKnowledgeSources());
+        return ResponseEntity.ok(ragIngestService.listKnowledgeSources(CurrentPrincipal.require().tenantId()));
     }
 
     @Operation(summary = "List knowledge source collections", description = "Raw uploaded source collections available for indexing")
     @GetMapping("/knowledge/source-collections")
     public ResponseEntity<List<Map<String, Object>>> listKnowledgeSourceCollections() {
-        return ResponseEntity.ok(ragIngestService.listKnowledgeSourceCollections());
+        return ResponseEntity.ok(ragIngestService.listKnowledgeSourceCollections(CurrentPrincipal.require().tenantId()));
     }
 
     @Operation(summary = "List uploaded documents", description = "Files stored for a capability source")
     @GetMapping("/documents")
     public ResponseEntity<List<Map<String, Object>>> listDocuments(
             @RequestParam(value = "capabilitySource", required = false) String capabilitySource) {
-        return ResponseEntity.ok(ragIngestService.listDocuments(capabilitySource));
+        return ResponseEntity.ok(ragIngestService.listDocuments(CurrentPrincipal.require().tenantId(), capabilitySource));
     }
 }

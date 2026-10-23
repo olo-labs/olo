@@ -43,6 +43,9 @@ public record OloSecurityProperties(
         List<String> publicPaths,
         List<BootstrapMembership> bootstrapMemberships) {
 
+    /** Tenant ids: 1-128 letters, digits, '.', '_' or '-', starting with a letter or digit. */
+    private static final java.util.regex.Pattern TENANT_ID = java.util.regex.Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,127}");
+
     public OloSecurityProperties {
         algorithms = algorithms == null || algorithms.isEmpty() ? List.of("RS256", "ES256") : List.copyOf(algorithms);
         clockSkew = clockSkew == null ? Duration.ofSeconds(30) : clockSkew;
@@ -76,6 +79,11 @@ public record OloSecurityProperties(
         for (BootstrapMembership m : bootstrapMemberships) {
             if (isBlank(m.issuer()) || isBlank(m.subject()) || m.tenants().isEmpty()) {
                 throw new IllegalStateException("olo.security.bootstrap-memberships entries need issuer, subject and tenants");
+            }
+            for (String tenant : m.tenants()) {
+                if (tenant == null || !TENANT_ID.matcher(tenant).matches()) {
+                    throw new IllegalStateException("olo.security.bootstrap-memberships: invalid tenant id " + tenant);
+                }
             }
         }
     }
