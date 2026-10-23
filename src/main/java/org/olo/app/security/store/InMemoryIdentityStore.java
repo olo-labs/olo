@@ -60,6 +60,12 @@ public final class InMemoryIdentityStore implements IdentityStore {
     }
 
     @Override
+    public Optional<SessionInfo> findSession(String issuer, String sessionId) {
+        Session session = sessions.get(IdentityKeys.sessionKey(issuer, sessionId));
+        return session == null ? Optional.empty() : Optional.of(new SessionInfo(session.userId(), session.epoch(), session.revoked()));
+    }
+
+    @Override
     public void revokeSession(String issuer, String sessionId) {
         sessions.computeIfPresent(IdentityKeys.sessionKey(issuer, sessionId),
                 (k, s) -> new Session(s.userId(), s.epoch() + 1, true));

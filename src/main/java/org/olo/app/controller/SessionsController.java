@@ -14,6 +14,7 @@ import org.olo.app.domain.NodeStatus;
 import org.olo.app.domain.NodeType;
 import org.olo.app.domain.OloExecutionEvent;
 import org.olo.app.security.CurrentPrincipal;
+import org.olo.app.tenant.TenantScopedName;
 import org.olo.app.service.ChatRedisPersistence;
 import org.olo.app.service.RunService;
 import org.olo.app.store.*;
@@ -124,8 +125,10 @@ public class SessionsController {
                 Map.of("tenantId", session.tenantId, "sessionId", sessionId, "messageId", messageId),
                 null, null, EventType.NODE_STARTED, correlationId);
 
-        String capabilitySource = request.getCapabilitySource() == null ? "" : request.getCapabilitySource().trim();
-        boolean ragSelected = !capabilitySource.isEmpty();
+        String requestedSource = request.getCapabilitySource() == null ? "" : request.getCapabilitySource().trim();
+        boolean ragSelected = !requestedSource.isEmpty();
+        // Retrieval can only ever search the session tenant's own sources (M3.11).
+        String capabilitySource = ragSelected ? TenantScopedName.qualify(session.tenantId, requestedSource) : "";
 
         String pipeline = (session.pipelineId != null && !session.pipelineId.isBlank())
                 ? session.pipelineId.trim()

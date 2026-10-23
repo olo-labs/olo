@@ -32,6 +32,9 @@ public interface IdentityStore {
      */
     SessionState session(String issuer, String sessionId, String userId);
 
+    /** The recorded session, without registering it. */
+    Optional<SessionInfo> findSession(String issuer, String sessionId);
+
     /** Revokes one session: it is refused from now on, and its epoch increases. */
     void revokeSession(String issuer, String sessionId);
 
@@ -43,6 +46,10 @@ public interface IdentityStore {
      * @param revoked whether the session may no longer be used
      * @param foreign whether the session belongs to a different user than the caller's token
      */
+    /** A recorded session: its owner, epoch and whether it was revoked. */
+    record SessionInfo(String userId, long epoch, boolean revoked) {
+    }
+
     record SessionState(long epoch, boolean revoked, boolean foreign) {
         public static SessionState foreignSession() {
             return new SessionState(0, true, true);

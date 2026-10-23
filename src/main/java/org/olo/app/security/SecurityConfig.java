@@ -6,6 +6,8 @@ package org.olo.app.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import org.olo.app.security.callback.WorkerCallbackAuthenticationFilter;
+import org.olo.app.security.callback.WorkerCallbackProperties;
 import org.olo.app.security.store.IdentityStore;
 import org.olo.app.security.store.InMemoryIdentityStore;
 import org.olo.app.security.store.RedisIdentityStore;
@@ -18,7 +20,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
@@ -27,11 +28,13 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -42,25 +45,31 @@ import java.util.Map;
  * <ul>
  *   <li>{@code olo.security.public-paths}: health and API docs</li>
  *   <li>{@code /ws}: the WebSocket handshake authenticates the token itself ({@code WebSocketAuthHandshakeHandler})</li>
- *   <li>{@code POST /api/runs/{runId}/events}: the worker's run-event callback. It is service-to-service, not a user
- *       call, and gets its own authentication in M3.11.</li>
+ *   <li>{@code POST /api/runs/{runId}/events}: the worker's run-event callback. It is service-to-service, so it is
+ *       authenticated by an HMAC signature ({@link WorkerCallbackAuthenticationFilter}) instead of a user token.</li>
  * </ul>
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(OloSecurityProperties.class)
+@EnableConfigurationProperties({OloSecurityProperties.class, WorkerCallbackProperties.class})
 public class SecurityConfig {
 
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     @Bean
-    public IdentityStore identityStore(OloSecurityProperties properties, ObjectProvider<StringRedisTemplate> redis) {
+    public IdentityStore identityStore(OloSecurityProperties properties, ObjectProvider<StringRedisTemplate> redis,
+                                       ObjectProvider<org.olo.app.toolgate.ToolGateClient> toolGate) {
         properties.validate();
+        IdentityStore store;
         if ("memory".equals(properties.store())) {
             log.warn("olo.security.store=memory: identity, membership and session state is per process and lost on restart. Tests only.");
-            return new InMemoryIdentityStore();
+            store = new InMemoryIdentityStore();
+        } else {
+            store = new RedisIdentityStore(redis.getObject());
         }
-        return new RedisIdentityStore(redis.getObject());
+        // With ToolGate user credentials on, every revocation also ends the user's ToolGate sessions.
+        var client = toolGate.getIfAvailable();
+        return client == null ? store : new org.olo.app.toolgate.RevocationPropagatingIdentityStore(store, client);
     }
 
     @Bean
@@ -79,6 +88,7 @@ public class SecurityConfig {
                                                       OloSecurityProperties properties,
                                                       JwtDecoder jwtDecoder,
                                                       OloPrincipalResolver resolver,
+                                                      WorkerCallbackProperties callbackProperties,
                                                       ObjectMapper objectMapper) throws Exception {
         AuthenticationEntryPoint entryPoint = (request, response, ex) -> writeError(response, objectMapper, ex);
         AccessDeniedHandler accessDenied = (request, response, ex) ->
@@ -96,7 +106,8 @@ public class SecurityConfig {
                         auth.requestMatchers(path).permitAll();
                     }
                     auth.requestMatchers("/ws").permitAll();
-                    auth.requestMatchers(HttpMethod.POST, "/api/runs/*/events").permitAll();
+                    auth.requestMatchers(WorkerCallbackAuthenticationFilter.CALLBACK)
+                            .hasAuthority(WorkerCallbackAuthenticationFilter.ROLE_WORKER);
                     auth.requestMatchers("/api/admin/**").hasAuthority(OloAuthenticationToken.ROLE_ADMIN);
                     auth.anyRequest().authenticated();
                 })
@@ -107,7 +118,10 @@ public class SecurityConfig {
                         .jwt(jwt -> jwt
                                 .decoder(jwtDecoder)
                                 .jwtAuthenticationConverter(new OloJwtAuthenticationConverter(resolver, properties.tenantHeader()))))
-                .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint).accessDeniedHandler(accessDenied));
+                .exceptionHandling(e -> e.authenticationEntryPoint(entryPoint).accessDeniedHandler(accessDenied))
+                // Not a bean: a Filter bean would also be registered with the servlet container and run twice.
+                .addFilterBefore(new WorkerCallbackAuthenticationFilter(callbackProperties, Clock.systemUTC()),
+                        BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 

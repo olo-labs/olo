@@ -72,11 +72,12 @@ public class RunsController {
         if (body.getSequenceNumber() == null) {
             return ResponseEntity.badRequest().build();
         }
-        String correlationId = body.getCorrelationId();
-        if (correlationId == null) {
-            ChatRunStore.RunRecord run = runStore.get(runId);
-            if (run != null) correlationId = run.correlationId;
+        // The signed worker may only report events for runs this backend started.
+        ChatRunStore.RunRecord run = runStore.get(runId);
+        if (run == null) {
+            return ResponseEntity.notFound().build();
         }
+        String correlationId = body.getCorrelationId() != null ? body.getCorrelationId() : run.correlationId;
         try {
             runService.appendEvent(
                     runId,
