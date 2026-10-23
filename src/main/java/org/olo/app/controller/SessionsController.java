@@ -14,6 +14,8 @@ import org.olo.app.domain.NodeStatus;
 import org.olo.app.domain.NodeType;
 import org.olo.app.domain.OloExecutionEvent;
 import org.olo.app.security.CurrentPrincipal;
+import org.olo.app.security.OloPrincipal;
+import org.olo.input.model.IdentityBinding;
 import org.olo.app.tenant.TenantScopedName;
 import org.olo.app.service.ChatRedisPersistence;
 import org.olo.app.service.RunService;
@@ -153,6 +155,10 @@ public class SessionsController {
             }
         }
 
+        // M3.3: the run carries who it acts for, from the verified principal; never a token, never request fields.
+        OloPrincipal principal = CurrentPrincipal.require();
+        IdentityBinding identity = new IdentityBinding(session.tenantId, principal.userId(), principal.issuer(),
+                principal.sessionId(), principal.sessionEpoch());
         org.olo.input.model.WorkflowInput workflowInput = WorkflowInputSerializer.build(
                 session.tenantId,
                 sessionId,
@@ -163,7 +169,8 @@ public class SessionsController {
                 runId,
                 callbackBaseUrl,
                 correlationId,
-                ragSelected ? capabilitySource : null);
+                ragSelected ? capabilitySource : null,
+                identity);
         runService.startWorkflow(runId, workflowInput, effectiveQueue);
 
         return ResponseEntity.ok(new SendMessageResponse(messageId, runId));
