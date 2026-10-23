@@ -133,7 +133,7 @@ The backend no longer uses `profiles.json`, `pipelines.json`, kernel Redis confi
 |-----------|------|----------------|
 | `WebSocketConfig` | `/ws` | Endpoint registration |
 | `RunEventWebSocketHandler` | — | `SUBSCRIBE_RUN`, PING/PONG, catch-up events |
-| `WebSocketAuthHandshakeHandler` | — | Optional JWT validation (`olo.ws.jwt.required`) |
+| `WebSocketAuthHandshakeHandler` | — | Verified JWT and tenant membership on the handshake |
 | `RunEventWebSocketRegistry` | — | Sessions per `runId` |
 | `RunEventBroadcaster` | — | Fan-out to SSE and WebSocket subscribers |
 
@@ -253,12 +253,13 @@ Happy-path flows above assume Temporal, Redis, workers, and the network are heal
 
 | Mechanism | Behavior |
 |-----------|----------|
-| **JWT (REST)** | `JwtTenantIdDecoder` reads `tenantId` from `Authorization: Bearer` on UI context and related calls |
-| **JWT (WebSocket)** | Handshake validates Bearer or `accessToken` query param when `olo.ws.jwt.required=true` |
-| **Default tenant** | When no JWT, uses first region under `olo.configuration.dir` |
+| **Verified JWT (REST)** | Spring Security resource server checks signature (issuer JWKS, RS256/ES256), `iss`, `aud`, `exp`/`nbf` and `sid` on every `/api/**` call except health, API docs and the worker callback `POST /api/runs/{runId}/events` (own auth in M3.11) |
+| **Verified JWT (WebSocket)** | `/ws` handshake applies the same checks; the token comes from `Authorization: Bearer` or the `access_token` query parameter, and the tenant from `X-OLO-Tenant` or `tenant` |
+| **Identity and tenancy** | Stable internal user id from `(iss, sub)`; tenant only from OLO's membership store (`X-OLO-Tenant` picks one of several). No default tenant and no `sub` fallback. Path or body tenant ids must match. |
+| **Sessions** | Each token's `sid` is tracked with an epoch; `POST /api/auth/logout`, `/api/auth/sessions/revoke-all` and the admin revoke endpoints refuse it from then on |
 | **WS subscribe** | `SUBSCRIBE_RUN` checks run tenant against session tenant |
 
-Dev/demo default: `olo.ws.jwt.required=false`.
+There is no unauthenticated or demo mode: `olo.security.issuer` and `olo.security.audience` are required at startup.
 
 ---
 
@@ -305,7 +306,7 @@ When frontend and backend run in **separate containers**, **olo-chat** nginx pro
 | `olo.temporal.target` | `OLO_TEMPORAL_TARGET` | Temporal gRPC address |
 | `olo.chat.callback-base-url` | `OLO_CHAT_CALLBACK_BASE_URL` | Worker event callback base |
 | `olo.cache.host` / `port` | `OLO_CACHE_*` | Redis |
-| `olo.ws.jwt.required` | `OLO_WS_JWT_REQUIRED` | WebSocket auth |
+| `olo.security.issuer` / `audience` / `jwk-set-uri` | `OLO_SECURITY_ISSUER` / `OLO_SECURITY_AUDIENCE` / `OLO_SECURITY_JWK_SET_URI` | Token verification (issuer and audience required) |
 | `olo.version` | `OLO_VERSION` | Shown in UI context |
 | `olo.resource.upload.base-dir` | `OLO_RESOURCE_UPLOAD_BASE_DIR` | Upload storage path |
 

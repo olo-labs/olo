@@ -7,14 +7,14 @@ package org.olo.app.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.olo.app.store.*;
-import org.olo.app.auth.JwtTenantIdDecoder;
-import org.olo.app.ws.DefaultJwtTenantExtractor;
-import org.olo.app.ws.JwtTenantExtractor;
+import org.olo.app.security.OloPrincipalResolver;
+import org.olo.app.security.OloSecurityProperties;
 import org.olo.app.ws.RunEventWebSocketHandler;
 import org.olo.app.ws.RunEventWebSocketRegistry;
 import org.olo.app.ws.WebSocketAuthHandshakeHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
 import org.olo.temporal.sdk.TemporalClient;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,15 +58,11 @@ public class DemoConfig {
     }
 
     @Bean
-    public JwtTenantExtractor jwtTenantExtractor(JwtTenantIdDecoder jwtTenantIdDecoder) {
-        return new DefaultJwtTenantExtractor(jwtTenantIdDecoder);
-    }
-
-    @Bean
-    public WebSocketAuthHandshakeHandler webSocketAuthHandshakeHandler(JwtTenantExtractor jwtTenantExtractor,
-                                                                       @Value("${olo.ws.jwt.required:true}") boolean wsJwtRequired,
-                                                                       ResolvedOloRuntimeSettings runtimeSettings) {
-        return new WebSocketAuthHandshakeHandler(new DefaultHandshakeHandler(), jwtTenantExtractor, wsJwtRequired, runtimeSettings.tenantId());
+    public WebSocketAuthHandshakeHandler webSocketAuthHandshakeHandler(JwtDecoder jwtDecoder,
+                                                                       OloPrincipalResolver principalResolver,
+                                                                       OloSecurityProperties securityProperties) {
+        return new WebSocketAuthHandshakeHandler(new DefaultHandshakeHandler(), jwtDecoder, principalResolver,
+                securityProperties.tenantHeader());
     }
 
     @Bean

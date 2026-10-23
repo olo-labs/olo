@@ -5,11 +5,10 @@
 
 package org.olo.app.api.request;
 
-import jakarta.validation.constraints.NotBlank;
 
 public class CreateSessionRequest {
 
-    @NotBlank
+    /** Optional. The session's tenant is always the verified caller's; a different value here is refused. */
     private String tenantId;
 
     private String queueName;

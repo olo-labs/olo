@@ -5,6 +5,7 @@
 
 package org.olo.app.controller;
 
+import org.olo.app.security.CurrentPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -56,7 +57,7 @@ public class RagIngestController {
     @PostMapping("/rag/ingest")
     public ResponseEntity<Map<String, Object>> ingest(@RequestBody RagIngestRequest body) throws Exception {
         Map<String, Object> result = ragIngestService.startIngest(
-                body.tenantId(),
+                CurrentPrincipal.requireOwnTenant(body.tenantId()),
                 body.sourceType(),
                 body.capabilitySource(),
                 body.knowledgeName(),
@@ -71,7 +72,7 @@ public class RagIngestController {
     @PostMapping("/rag/delete")
     public ResponseEntity<Map<String, Object>> delete(@RequestBody RagDeleteRequest body) throws Exception {
         Map<String, Object> result = ragIngestService.startDelete(
-                body.tenantId(),
+                CurrentPrincipal.requireOwnTenant(body.tenantId()),
                 body.sourceType(),
                 body.knowledgeName(),
                 body.sourceCollection(),

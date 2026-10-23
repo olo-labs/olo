@@ -94,8 +94,8 @@ public class RunEventWebSocketHandler extends TextWebSocketHandler {
                 return;
             }
             String sessionTenantId = (String) session.getAttributes().get(WebSocketAuthHandshakeHandler.ATTR_TENANT_ID);
-            boolean tenantOk = run.tenantId == null || run.tenantId.isBlank()
-                    || sessionTenantId == null || sessionTenantId.equals(run.tenantId);
+            // Fail closed: the handshake always sets a verified tenant, and every run records one.
+            boolean tenantOk = sessionTenantId != null && run.tenantId != null && sessionTenantId.equals(run.tenantId);
             if (!tenantOk) {
                 log.warn("[WS] SUBSCRIBE_RUN rejected: tenant mismatch runId={} runTenant={} sessionTenant={}",
                         runId, run.tenantId, sessionTenantId);
