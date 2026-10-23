@@ -86,6 +86,16 @@ public final class RedisIdentityStore implements IdentityStore {
     }
 
     @Override
+    public Optional<SessionInfo> findSession(String issuer, String sessionId) {
+        Map<Object, Object> fields = redis.opsForHash().entries(IdentityKeys.sessionKey(issuer, sessionId));
+        if (fields == null || !(fields.get("userId") instanceof String userId)) {
+            return Optional.empty();
+        }
+        return Optional.of(new SessionInfo(userId, Long.parseLong(String.valueOf(fields.getOrDefault("epoch", "1"))),
+                Boolean.parseBoolean(String.valueOf(fields.getOrDefault("revoked", "false")))));
+    }
+
+    @Override
     public void revokeSession(String issuer, String sessionId) {
         revokeKey(IdentityKeys.sessionKey(issuer, sessionId));
     }

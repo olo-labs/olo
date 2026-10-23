@@ -57,13 +57,19 @@ public class SecurityConfig {
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     @Bean
-    public IdentityStore identityStore(OloSecurityProperties properties, ObjectProvider<StringRedisTemplate> redis) {
+    public IdentityStore identityStore(OloSecurityProperties properties, ObjectProvider<StringRedisTemplate> redis,
+                                       ObjectProvider<org.olo.app.toolgate.ToolGateClient> toolGate) {
         properties.validate();
+        IdentityStore store;
         if ("memory".equals(properties.store())) {
             log.warn("olo.security.store=memory: identity, membership and session state is per process and lost on restart. Tests only.");
-            return new InMemoryIdentityStore();
+            store = new InMemoryIdentityStore();
+        } else {
+            store = new RedisIdentityStore(redis.getObject());
         }
-        return new RedisIdentityStore(redis.getObject());
+        // With ToolGate user credentials on, every revocation also ends the user's ToolGate sessions.
+        var client = toolGate.getIfAvailable();
+        return client == null ? store : new org.olo.app.toolgate.RevocationPropagatingIdentityStore(store, client);
     }
 
     @Bean

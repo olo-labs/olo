@@ -43,7 +43,10 @@ import java.util.Objects;
 public final class WorkerCallbackAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String ROLE_WORKER = "ROLE_OLO_WORKER";
-    public static final RequestMatcher CALLBACK = new AntPathRequestMatcher("/api/runs/*/events", HttpMethod.POST.name());
+    /** Worker-signed endpoints: run-event callbacks, and ToolGate user credentials for a run's user (M3.4). */
+    public static final RequestMatcher CALLBACK = new org.springframework.security.web.util.matcher.OrRequestMatcher(
+            new AntPathRequestMatcher("/api/runs/*/events", HttpMethod.POST.name()),
+            new AntPathRequestMatcher("/api/internal/toolgate/credentials", HttpMethod.POST.name()));
 
     private static final Logger log = LoggerFactory.getLogger(WorkerCallbackAuthenticationFilter.class);
 
