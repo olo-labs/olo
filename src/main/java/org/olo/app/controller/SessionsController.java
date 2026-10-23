@@ -13,6 +13,7 @@ import org.olo.app.domain.EventType;
 import org.olo.app.domain.NodeStatus;
 import org.olo.app.domain.NodeType;
 import org.olo.app.domain.OloExecutionEvent;
+import org.olo.app.security.CurrentPrincipal;
 import org.olo.app.service.ChatRedisPersistence;
 import org.olo.app.service.RunService;
 import org.olo.app.store.*;
@@ -72,13 +73,14 @@ public class SessionsController {
     @Operation(summary = "Create session", description = "Create a new chat session for a tenant, optionally scoped by queue and pipeline.")
     @PostMapping
     public ResponseEntity<CreateSessionResponse> createSession(@Valid @RequestBody CreateSessionRequest request) {
+        String tenantId = CurrentPrincipal.requireOwnTenant(request.getTenantId());
         String sessionId = UUID.randomUUID().toString();
         ChatSessionStore.SessionRecord rec = new ChatSessionStore.SessionRecord(
-                sessionId, request.getTenantId(), System.currentTimeMillis(), System.currentTimeMillis(),
+                sessionId, tenantId, System.currentTimeMillis(), System.currentTimeMillis(),
                 request.getQueueName(), request.getPipelineId());
         sessionStore.put(rec);
         if (redisPersistence != null) {
-            redisPersistence.saveSession(request.getTenantId(), sessionId, rec.createdAt, rec.lastActivityAt, request.getQueueName(), request.getPipelineId());
+            redisPersistence.saveSession(tenantId, sessionId, rec.createdAt, rec.lastActivityAt, request.getQueueName(), request.getPipelineId());
         }
         return ResponseEntity.ok(new CreateSessionResponse(sessionId));
     }
@@ -86,7 +88,7 @@ public class SessionsController {
     @Operation(summary = "Delete session", description = "Delete one chat session and its messages. Used by Conversation per-conversation delete button.")
     @DeleteMapping("/{sessionId}")
     public ResponseEntity<Void> deleteSession(@PathVariable String sessionId) {
-        ChatSessionStore.SessionRecord session = sessionStore.get(sessionId);
+        ChatSessionStore.SessionRecord session = ownedSession(sessionId);
         if (session == null) return ResponseEntity.notFound().build();
         messageStore.removeBySessionIds(List.of(sessionId));
         sessionStore.delete(sessionId);
@@ -100,7 +102,7 @@ public class SessionsController {
     @PostMapping("/{sessionId}/messages")
     public ResponseEntity<SendMessageResponse> sendMessage(@PathVariable String sessionId,
                                                           @Valid @RequestBody SendMessageRequest request) {
-        ChatSessionStore.SessionRecord session = sessionStore.get(sessionId);
+        ChatSessionStore.SessionRecord session = ownedSession(sessionId);
         if (session == null) return ResponseEntity.notFound().build();
 
         String messageId = UUID.randomUUID().toString();
@@ -167,7 +169,7 @@ public class SessionsController {
     @Operation(summary = "List messages", description = "List all messages in the session")
     @GetMapping("/{sessionId}/messages")
     public ResponseEntity<List<Map<String, Object>>> listMessages(@PathVariable String sessionId) {
-        ChatSessionStore.SessionRecord session = sessionStore.get(sessionId);
+        ChatSessionStore.SessionRecord session = ownedSession(sessionId);
         if (session == null) return ResponseEntity.notFound().build();
         if (redisPersistence != null) {
             List<Map<String, Object>> fromRedis = redisPersistence.listMessages(session.tenantId, sessionId);
@@ -197,5 +199,17 @@ public class SessionsController {
                         "createdAt", m.createdAt
                 ))
                 .collect(Collectors.toList()));
+    }
+
+    /**
+     * The session, only if it belongs to the verified caller's tenant. Another tenant's session is reported as not found,
+     * so its existence isn't revealed.
+     */
+    private ChatSessionStore.SessionRecord ownedSession(String sessionId) {
+        ChatSessionStore.SessionRecord session = sessionStore.get(sessionId);
+        if (session == null || !CurrentPrincipal.require().ownsTenant(session.tenantId)) {
+            return null;
+        }
+        return session;
     }
 }

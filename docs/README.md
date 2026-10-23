@@ -91,7 +91,8 @@ Copy `.env.example` to `.env` for local overrides. Key variables:
 | `OLO_TEMPORAL_TARGET` | `localhost:7233` | Temporal gRPC target |
 | `OLO_CACHE_HOST` / `OLO_CACHE_PORT` | `localhost` / `46379` | Redis for session persistence |
 | `OLO_CHAT_CALLBACK_BASE_URL` | `http://192.168.0.114:7080` for `bootRun`; app fallback `http://localhost:7080` | URL workers use to POST run events. When workers run in Docker and backend runs on this PC, use this PC's LAN IP. |
-| `OLO_WS_JWT_REQUIRED` | `false` | WebSocket JWT validation (set `true` in production) |
+| `OLO_SECURITY_ISSUER` / `OLO_SECURITY_AUDIENCE` | (required) | Issuer and audience of sign-in tokens. Every API call and the WebSocket need a verified JWT. |
+| `OLO_SECURITY_JWK_SET_URI` | issuer discovery | JWKS endpoint of the issuer |
 
 See `.env.example` for the full list.
 

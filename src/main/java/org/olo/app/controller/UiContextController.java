@@ -7,15 +7,12 @@ package org.olo.app.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
-import org.olo.app.auth.JwtTenantIdDecoder;
 import org.olo.app.config.RegionalConfigurationRegistry;
 import org.olo.app.config.RegionalConfigurationSnapshot;
+import org.olo.app.security.CurrentPrincipal;
 import org.olo.definition.workflow.WorkflowDefinition;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,8 +22,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Chat UI context: {@code tenantId} from JWT when present, else tenant from {@code olo.configuration.dir};
- * display name {@code olo.ui.tenant-display-name}; user label {@code olo.ui.user-display-name}.
+ * Chat UI context: {@code tenantId} is the verified caller's tenant ({@link CurrentPrincipal}); display name
+ * {@code olo.ui.tenant-display-name}; user label {@code olo.ui.user-display-name}.
  */
 @RestController
 @RequestMapping("/api/ui")
@@ -35,10 +32,7 @@ public class UiContextController {
 
     private static final String FALLBACK_OLO_VERSION = "v1.0.0-Dev";
 
-    private final JwtTenantIdDecoder jwtTenantIdDecoder;
     private final RegionalConfigurationRegistry configurationRegistry;
-
-    private final String defaultTenantId;
 
     @Value("${olo.ui.tenant-display-name:Default}")
     private String tenantDisplayName;
@@ -49,11 +43,7 @@ public class UiContextController {
     @Value("${olo.version:}")
     private String oloVersion;
 
-    public UiContextController(JwtTenantIdDecoder jwtTenantIdDecoder,
-                               @Qualifier("oloDefaultTenantId") String defaultTenantId,
-                               @Autowired(required = false) RegionalConfigurationRegistry configurationRegistry) {
-        this.jwtTenantIdDecoder = jwtTenantIdDecoder;
-        this.defaultTenantId = defaultTenantId;
+    public UiContextController(@Autowired(required = false) RegionalConfigurationRegistry configurationRegistry) {
         this.configurationRegistry = configurationRegistry;
     }
 
@@ -84,20 +74,14 @@ public class UiContextController {
 
     @Operation(
             summary = "UI context",
-            description = "tenantId from JWT when Authorization is sent; otherwise tenant from olo.configuration.dir (default region folder). "
+            description = "tenantId is the verified caller's tenant (pick one with the X-OLO-Tenant header when a member of several). "
                     + "tenant = olo.ui.tenant-display-name; user = olo.ui.user-display-name; olo.version. "
                     + "chatProfiles = enabled workflow definitions under olo.configuration.dir/<region>/ (*.json): "
                     + "role=displayName, shortDescription=displaySummary, emoji, queue, id=pipeline."
     )
     @GetMapping("/context")
-    public ResponseEntity<UiContextDto> getContext(HttpServletRequest request) {
-        String fromJwt = jwtTenantIdDecoder.tenantIdFromAuthorizationHeader(request.getHeader(HttpHeaders.AUTHORIZATION));
-        String tid;
-        if (fromJwt != null && !fromJwt.isBlank()) {
-            tid = fromJwt.trim();
-        } else {
-            tid = (defaultTenantId != null && !defaultTenantId.isBlank()) ? defaultTenantId.trim() : "default";
-        }
+    public ResponseEntity<UiContextDto> getContext() {
+        String tid = CurrentPrincipal.require().tenantId();
         String tLabel = (tenantDisplayName != null && !tenantDisplayName.isBlank())
                 ? tenantDisplayName.trim()
                 : "Default";

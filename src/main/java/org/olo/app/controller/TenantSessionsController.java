@@ -5,6 +5,7 @@
 
 package org.olo.app.controller;
 
+import org.olo.app.security.CurrentPrincipal;
 import org.olo.app.service.ChatRedisPersistence;
 import org.olo.app.store.ChatMessageStore;
 import org.olo.app.store.ChatSessionStore;
@@ -47,6 +48,7 @@ public class TenantSessionsController {
             @PathVariable String tenantId,
             @RequestParam(required = false) String queue,
             @RequestParam(required = false) String pipeline) {
+        tenantId = CurrentPrincipal.requireOwnTenant(tenantId);
         List<ChatSessionStore.SessionRecord> records = null;
         if (redisPersistence != null) {
             records = redisPersistence.listSessionsByTenant(tenantId, queue, pipeline);
@@ -79,6 +81,7 @@ public class TenantSessionsController {
             @PathVariable String tenantId,
             @RequestParam(required = false) String queue,
             @RequestParam(required = false) String pipeline) {
+        tenantId = CurrentPrincipal.requireOwnTenant(tenantId);
         if (sessionStore != null) {
             List<String> removed = sessionStore.deleteAllForTenant(tenantId, queue, pipeline);
             if (messageStore != null && !removed.isEmpty()) {

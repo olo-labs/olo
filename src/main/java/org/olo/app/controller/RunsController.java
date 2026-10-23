@@ -8,14 +8,17 @@ package org.olo.app.controller;
 import org.olo.app.api.request.AppendEventRequest;
 import org.olo.app.api.request.HumanInputRequest;
 import org.olo.app.service.RunService;
+import org.olo.app.security.CurrentPrincipal;
 import org.olo.app.store.ChatRunStore;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -43,6 +46,9 @@ public class RunsController {
     @Operation(summary = "Stream run events (SSE)", description = "Server-sent events stream: catch-up then live execution events (PLANNER, TOOL, MODEL, HUMAN)")
     @GetMapping(value = "/{runId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamEvents(@PathVariable String runId) {
+        if (ownedRun(runId) == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "run not found");
+        }
         log.info("[BE SSE] 1. streamEvents: client connected runId={}", runId);
         SseEmitter emitter = new SseEmitter(0L);
         runService.getBroadcaster().subscribeWithCatchUp(runId, emitter);
@@ -97,6 +103,7 @@ public class RunsController {
     @Operation(summary = "Human input", description = "User approval or text for a HUMAN step; signals the workflow and resumes execution")
     @PostMapping("/{runId}/human-input")
     public ResponseEntity<Void> humanInput(@PathVariable String runId, @RequestBody(required = false) HumanInputRequest body) {
+        if (ownedRun(runId) == null) return ResponseEntity.notFound().build();
         boolean approved = body != null && body.isApproved();
         String message = body != null ? body.getMessage() : null;
         String historyText = body != null ? body.getHistoryText() : null;
@@ -108,6 +115,7 @@ public class RunsController {
     @Operation(summary = "Cancel run", description = "Cancels an in-progress workflow execution")
     @PostMapping("/{runId}/cancel")
     public ResponseEntity<Void> cancelRun(@PathVariable String runId) {
+        if (ownedRun(runId) == null) return ResponseEntity.notFound().build();
         try {
             runService.cancelRun(runId);
             return ResponseEntity.noContent().build();
@@ -121,7 +129,7 @@ public class RunsController {
     @Operation(summary = "Get run", description = "Get run status and metadata")
     @GetMapping("/{runId}")
     public ResponseEntity<Map<String, Object>> getRun(@PathVariable String runId) {
-        ChatRunStore.RunRecord run = runStore.get(runId);
+        ChatRunStore.RunRecord run = ownedRun(runId);
         if (run == null) return ResponseEntity.notFound().build();
         Map<String, Object> map = new java.util.HashMap<>(Map.of(
                 "runId", run.runId,
@@ -140,8 +148,17 @@ public class RunsController {
     @Operation(summary = "Get run response", description = "Current assistant response for this run from event store (last MODEL or SYSTEM COMPLETED with output). Query when receiving events or while run in progress.")
     @GetMapping("/{runId}/response")
     public ResponseEntity<Map<String, Object>> getRunResponse(@PathVariable String runId) {
-        if (runStore.get(runId) == null) return ResponseEntity.notFound().build();
+        if (ownedRun(runId) == null) return ResponseEntity.notFound().build();
         String response = runService.getRunResponse(runId);
         return ResponseEntity.ok(Map.of("runId", runId, "response", response != null ? response : ""));
+    }
+
+    /** The run, only if it belongs to the verified caller's tenant. Another tenant's run is reported as not found. */
+    private ChatRunStore.RunRecord ownedRun(String runId) {
+        ChatRunStore.RunRecord run = runStore.get(runId);
+        if (run == null || !CurrentPrincipal.require().ownsTenant(run.tenantId)) {
+            return null;
+        }
+        return run;
     }
 }
