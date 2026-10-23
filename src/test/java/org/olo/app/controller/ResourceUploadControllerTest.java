@@ -8,7 +8,12 @@ package org.olo.app.controller;
 import org.olo.app.service.RagIngestService;
 import org.olo.app.service.ResourceUploadService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.olo.app.security.OloAuthenticationToken;
+import org.olo.app.security.OloPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
+import java.time.Instant;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
@@ -39,7 +44,9 @@ class ResourceUploadControllerTest {
         Map<String, Object> uploadResult = new LinkedHashMap<>();
         uploadResult.put("success", true);
         uploadResult.put("files", List.of(Map.of("fileName", "notes.pdf")));
-        when(resourceUploadService.saveUpload(any(), eq("rag-knowledge"), any(), eq(null), eq(null)))
+        SecurityContextHolder.getContext().setAuthentication(new OloAuthenticationToken(
+                new OloPrincipal("t1", "user-1", "https://idp.test", "alice", "s1", 1, Instant.now().plusSeconds(60), false), null));
+        when(resourceUploadService.saveUpload(any(), eq("t1"), eq("rag-knowledge"), any(), eq(null), eq(null)))
                 .thenReturn(uploadResult);
 
         ResourceUploadController controller = new ResourceUploadController(resourceUploadService, ragIngestService);
@@ -51,5 +58,10 @@ class ResourceUploadControllerTest {
         assertTrue(Boolean.TRUE.equals(response.getBody().get("success")));
         assertEquals(List.of(Map.of("fileName", "notes.pdf")), response.getBody().get("files"));
         verifyNoInteractions(ragIngestService);
+    }
+
+    @AfterEach
+    void clearPrincipal() {
+        SecurityContextHolder.clearContext();
     }
 }
