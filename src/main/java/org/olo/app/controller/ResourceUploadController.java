@@ -37,7 +37,7 @@ import java.util.Map;
 /**
  * Multipart resource upload for the Documents UI ({@code POST /api/resource/upload}).
  */
-@RestController
+// Fresh-install contract: this legacy controller is deliberately not registered. Removed in M9.
 @Tag(name = "Resource upload", description = "Upload raw files for capability sources (shared folder / future object storage)")
 public class ResourceUploadController {
 

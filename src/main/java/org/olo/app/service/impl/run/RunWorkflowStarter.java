@@ -58,10 +58,7 @@ public class RunWorkflowStarter {
                     }
                     boolean hasResponse = effectiveResult != null && !effectiveResult.isBlank();
                     if (hasResponse) {
-                        log.info("[BE SSE] Workflow completed runId={} responseLen={} preview={}", runId,
-                                effectiveResult.length(),
-                                effectiveResult.substring(0, Math.min(80, effectiveResult.length()))
-                                        + (effectiveResult.length() > 80 ? "..." : ""));
+                        log.info("Workflow completed runId={} responseLen={}",runId,effectiveResult.length());
                     } else {
                         log.info("[BE SSE] Workflow completed runId={} hasResponse=false", runId);
                     }

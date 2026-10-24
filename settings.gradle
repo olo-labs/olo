@@ -9,5 +9,6 @@ plugins {
 
 rootProject.name = 'olo-backend'
 include 'olo-temporal-sdk'
+includeBuild('../olo-mono/olo-toolgate-client')
 
 // olo-definition and olo-workflow-input resolve from olo-mono/build/repo (publish-libs.bat).

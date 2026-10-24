@@ -64,7 +64,6 @@ public class RunServiceImpl implements RunService {
 
     @Override
     public void signalHumanInput(String runId, boolean approved, String message, String historyText) {
-        humanStepPersistence.persistOperatorReply(runId, approved, message, historyText);
         workflowRunner.signalHumanInput(runId, approved, message);
     }
 

@@ -114,12 +114,12 @@ class ApiSecurityTest {
     }
 
     @Test
-    void tenantInThePathMustBeTheCallersOwn() throws Exception {
+    void legacyTenantSessionPathsAreClosedOnAFreshInstall() throws Exception {
         String token = bearer(TestTokens.token("alice", "a2"));
 
-        mvc.perform(get("/api/tenants/t1/sessions").header("Authorization", token)).andExpect(status().isOk());
-        mvc.perform(get("/api/tenants/t2/sessions").header("Authorization", token)).andExpect(status().isForbidden());
-        mvc.perform(delete("/api/tenants/t2/sessions").header("Authorization", token)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/tenants/t1/sessions").header("Authorization", token)).andExpect(status().isGone());
+        mvc.perform(get("/api/tenants/t2/sessions").header("Authorization", token)).andExpect(status().isGone());
+        mvc.perform(delete("/api/tenants/t2/sessions").header("Authorization", token)).andExpect(status().isGone());
     }
 
     @Test

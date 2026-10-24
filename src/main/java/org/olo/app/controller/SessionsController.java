@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-@RestController
+// Fresh-install contract: this legacy controller is deliberately not registered. Removed in M9.
 @RequestMapping("/api/sessions")
 @Tag(name = "Sessions", description = "Chat sessions and messages")
 public class SessionsController {
