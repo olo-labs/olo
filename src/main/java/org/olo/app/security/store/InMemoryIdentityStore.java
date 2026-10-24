@@ -20,8 +20,9 @@ public final class InMemoryIdentityStore implements IdentityStore {
     private final Map<String, String> users = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> memberships = new ConcurrentHashMap<>();
     private final Map<String, Session> sessions = new ConcurrentHashMap<>();
+    private final Map<String, String> revocations = new ConcurrentHashMap<>();
 
-    private record Session(String userId, long epoch, boolean revoked) {
+    private record Session(String userId, long epoch, boolean revoked, java.time.Instant authenticatedUntil) {
     }
 
     @Override
@@ -50,9 +51,15 @@ public final class InMemoryIdentityStore implements IdentityStore {
     }
 
     @Override
-    public SessionState session(String issuer, String sessionId, String userId) {
-        Session session = sessions.computeIfAbsent(IdentityKeys.sessionKey(issuer, sessionId),
-                k -> new Session(userId, 1, false));
+    public SessionState session(String issuer, String sessionId, String userId, java.time.Instant authenticatedUntil) {
+        java.util.Objects.requireNonNull(authenticatedUntil, "authenticatedUntil");
+        Session session = sessions.compute(IdentityKeys.sessionKey(issuer, sessionId), (k, old) -> {
+            if (old == null) return new Session(userId, 1, false, authenticatedUntil);
+            if (old.userId().equals(userId) && !old.revoked() && authenticatedUntil.isAfter(old.authenticatedUntil())) {
+                return new Session(userId, old.epoch(), false, authenticatedUntil);
+            }
+            return old;
+        });
         if (!session.userId().equals(userId)) {
             return SessionState.foreignSession();
         }
@@ -62,13 +69,13 @@ public final class InMemoryIdentityStore implements IdentityStore {
     @Override
     public Optional<SessionInfo> findSession(String issuer, String sessionId) {
         Session session = sessions.get(IdentityKeys.sessionKey(issuer, sessionId));
-        return session == null ? Optional.empty() : Optional.of(new SessionInfo(session.userId(), session.epoch(), session.revoked()));
+        return session == null ? Optional.empty() : Optional.of(new SessionInfo(session.userId(), session.epoch(), session.revoked(), session.authenticatedUntil()));
     }
 
     @Override
     public void revokeSession(String issuer, String sessionId) {
         sessions.computeIfPresent(IdentityKeys.sessionKey(issuer, sessionId),
-                (k, s) -> new Session(s.userId(), s.epoch() + 1, true));
+                (k, s) -> new Session(s.userId(), s.epoch() + 1, true, s.authenticatedUntil()));
     }
 
     @Override
@@ -77,10 +84,14 @@ public final class InMemoryIdentityStore implements IdentityStore {
         sessions.replaceAll((k, s) -> {
             if (s.userId().equals(userId) && !s.revoked()) {
                 count[0]++;
-                return new Session(s.userId(), s.epoch() + 1, true);
+                return new Session(s.userId(), s.epoch() + 1, true, s.authenticatedUntil());
             }
             return s;
         });
         return count[0];
     }
+
+    @Override public void enqueueRevocation(String userId, String eventId) { revocations.put(userId, eventId); }
+    @Override public Map<String, String> pendingRevocations() { return Map.copyOf(revocations); }
+    @Override public void acknowledgeRevocation(String userId, String eventId) { revocations.remove(userId, eventId); }
 }

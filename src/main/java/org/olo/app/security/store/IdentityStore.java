@@ -30,7 +30,7 @@ public interface IdentityStore {
      * Registers the session on first sight and returns its state. A session id seen first for another user is reported
      * as {@link SessionState#foreign()} and must be refused.
      */
-    SessionState session(String issuer, String sessionId, String userId);
+    SessionState session(String issuer, String sessionId, String userId, java.time.Instant authenticatedUntil);
 
     /** The recorded session, without registering it. */
     Optional<SessionInfo> findSession(String issuer, String sessionId);
@@ -47,8 +47,13 @@ public interface IdentityStore {
      * @param foreign whether the session belongs to a different user than the caller's token
      */
     /** A recorded session: its owner, epoch and whether it was revoked. */
-    record SessionInfo(String userId, long epoch, boolean revoked) {
+    record SessionInfo(String userId, long epoch, boolean revoked, java.time.Instant authenticatedUntil) {
     }
+
+    /** Durable notification outbox. Acknowledgement must not remove a newer event for the same user. */
+    void enqueueRevocation(String userId, String eventId);
+    java.util.Map<String, String> pendingRevocations();
+    void acknowledgeRevocation(String userId, String eventId);
 
     record SessionState(long epoch, boolean revoked, boolean foreign) {
         public static SessionState foreignSession() {

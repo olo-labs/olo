@@ -12,7 +12,8 @@ import java.util.Set;
 /**
  * Passes every session revocation on to ToolGate, so outstanding ToolGate user credentials stop at Control's next
  * authorization instead of at expiry (the 30-second revocation bound). Local revocation always happens first and never
- * waits on ToolGate; a failed call is logged, and the credential still expires within five minutes.
+ * Failed notifications remain in the identity store's durable outbox and are retried. User credentials live at most
+ * fifteen seconds, bounding stale authority even when the notification channel is unavailable.
  */
 public final class RevocationPropagatingIdentityStore implements IdentityStore {
 
@@ -54,8 +55,8 @@ public final class RevocationPropagatingIdentityStore implements IdentityStore {
     }
 
     @Override
-    public SessionState session(String issuer, String sessionId, String userId) {
-        return delegate.session(issuer, sessionId, userId);
+    public SessionState session(String issuer, String sessionId, String userId, java.time.Instant authenticatedUntil) {
+        return delegate.session(issuer, sessionId, userId, authenticatedUntil);
     }
 
     @Override
@@ -77,10 +78,26 @@ public final class RevocationPropagatingIdentityStore implements IdentityStore {
     }
 
     private void propagate(String userId) {
+        String eventId = java.util.UUID.randomUUID().toString();
+        delegate.enqueueRevocation(userId, eventId);
+        deliver(userId, eventId);
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 5000)
+    public void retryPendingRevocations() {
+        delegate.pendingRevocations().forEach(this::deliver);
+    }
+
+    private void deliver(String userId, String eventId) {
         try {
             toolGate.revoke(userId);
+            delegate.acknowledgeRevocation(userId, eventId);
         } catch (RuntimeException e) {
-            log.error("ToolGate session revocation failed for user {}; its credentials expire within five minutes", userId, e);
+            log.warn("ToolGate revocation pending for user {}; retrying from durable outbox", userId);
         }
     }
+
+    @Override public void enqueueRevocation(String userId, String eventId) { delegate.enqueueRevocation(userId, eventId); }
+    @Override public java.util.Map<String, String> pendingRevocations() { return delegate.pendingRevocations(); }
+    @Override public void acknowledgeRevocation(String userId, String eventId) { delegate.acknowledgeRevocation(userId, eventId); }
 }

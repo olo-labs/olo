@@ -47,7 +47,7 @@ public final class OloPrincipalResolver {
 
         String userId = store.userIdFor(issuer, subject);
 
-        IdentityStore.SessionState session = store.session(issuer, sessionId, userId);
+        IdentityStore.SessionState session = store.session(issuer, sessionId, userId, jwt.getExpiresAt());
         if (session.foreign()) {
             throw OloIdentityException.unauthorized("session_mismatch", "session belongs to another user");
         }

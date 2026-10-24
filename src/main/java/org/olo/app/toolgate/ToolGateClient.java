@@ -80,12 +80,13 @@ public class ToolGateClient {
     }
 
     /** Exchanges a fresh assertion for {@code userId}, the stable OLO user id. */
-    public Credential exchange(String userId) {
+    public Credential exchange(String tenantId, String userId, java.time.Instant authenticatedUntil) {
+        java.time.Instant now = clock.instant();
         String form = Map.of(
                         "grant_type", GRANT_TYPE,
                         "subject_token_type", JWT_TYPE,
                         "requested_token_type", JWT_TYPE,
-                        "subject_token", signer.sign(userId, clock.instant()))
+                        "subject_token", signer.sign(tenantId, userId, now, authenticatedUntil))
                 .entrySet().stream()
                 .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
                 .collect(Collectors.joining("&"));
@@ -93,10 +94,26 @@ public class ToolGateClient {
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .POST(HttpRequest.BodyPublishers.ofString(form)));
         JsonNode body = parse(response);
-        if (response.statusCode() != 200 || !body.path("access_token").isTextual() || !body.path("expires_in").canConvertToLong()) {
+        if (response.statusCode() != 200 || !body.path("access_token").isTextual() || !body.path("expires_in").canConvertToLong()
+                || body.path("expires_in").asLong() <= 0) {
             throw refusal(response, body);
         }
-        return new Credential(body.get("access_token").asText(), body.get("expires_in").asLong());
+        String token = body.get("access_token").asText();
+        // The exchange is reached over authenticated TLS. Refuse a token for the configured Control tenant when it
+        // differs from the requested run tenant; never return that foreign credential to a worker.
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length != 3) throw new IllegalArgumentException("malformed credential");
+            JsonNode claims = json.readTree(java.util.Base64.getUrlDecoder().decode(parts[1]));
+            long expiry = claims.path("exp").asLong(0);
+            long maximum = Math.min(now.plusSeconds(15).getEpochSecond(), authenticatedUntil.getEpochSecond());
+            if (!tenantId.equals(claims.path("tid").asText()) || expiry <= clock.instant().getEpochSecond() || expiry > maximum) {
+                throw new IllegalArgumentException("credential tenant or lifetime mismatch");
+            }
+            return new Credential(token, Math.min(body.get("expires_in").asLong(), expiry - clock.instant().getEpochSecond()));
+        } catch (IOException | IllegalArgumentException e) {
+            throw new ToolGateException(502, "invalid_credential_binding", "ToolGate returned a credential outside the run's tenant or lifetime");
+        }
     }
 
     /** Ends every ToolGate session of {@code userId}: outstanding credentials stop at Control's next authorization. */

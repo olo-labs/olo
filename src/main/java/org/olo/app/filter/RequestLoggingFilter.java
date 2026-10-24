@@ -29,6 +29,12 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     private static final int MAX_BODY_LOG_LENGTH = 2000;
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        // Codec encode requests contain plaintext payloads (base64 is not redaction).
+        return request.getRequestURI().startsWith("/api/codec/");
+    }
+
+    @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain) throws ServletException, IOException {

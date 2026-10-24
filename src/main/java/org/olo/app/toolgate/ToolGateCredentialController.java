@@ -53,14 +53,17 @@ public class ToolGateCredentialController {
         }
         var session = identityStore.findSession(ref.issuer(), ref.sessionId()).orElse(null);
         if (session == null || !session.userId().equals(ref.userId()) || session.revoked()
-                || session.epoch() != ref.sessionEpoch()) {
+                || session.epoch() != ref.sessionEpoch() || !session.authenticatedUntil().isAfter(java.time.Instant.now())) {
             return error(HttpStatus.FORBIDDEN, "session_ended", "the run's session is no longer valid");
         }
         if (!identityStore.tenantsOf(ref.userId()).contains(ref.tenantId())) {
             return error(HttpStatus.FORBIDDEN, "not_member", "the user is not a member of the run's tenant");
         }
+        if (identityStore.pendingRevocations().containsKey(ref.userId())) {
+            return error(HttpStatus.SERVICE_UNAVAILABLE, "revocation_pending", "user authority is being synchronized");
+        }
         try {
-            ToolGateClient.Credential credential = client.exchange(ref.userId());
+            ToolGateClient.Credential credential = client.exchange(ref.tenantId(), ref.userId(), session.authenticatedUntil());
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("accessToken", credential.accessToken());
             body.put("tokenType", "Bearer");

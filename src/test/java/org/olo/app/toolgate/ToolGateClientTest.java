@@ -46,6 +46,9 @@ class ToolGateClientTest {
     private final KeyPair keys = rsa();
     private final List<Map<String, String>> calls = new CopyOnWriteArrayList<>();
     private volatile int exchangeStatus = 200;
+    private volatile int revokeStatus = 204;
+    private volatile String issuedTenant = "t1";
+    private volatile long issuedLifetime = 15;
     private HttpServer control;
     private ToolGateClient client;
 
@@ -63,8 +66,8 @@ class ToolGateClientTest {
             call.put("body", new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             calls.add(call);
             boolean revoke = call.get("path").endsWith("/sessions/revoke");
-            int status = revoke ? 204 : exchangeStatus;
-            byte[] body = (status == 200 ? "{\"access_token\":\"credential\",\"issued_token_type\":\"urn:ietf:params:oauth:token-type:jwt\",\"token_type\":\"Bearer\",\"expires_in\":120}"
+            int status = revoke ? revokeStatus : exchangeStatus;
+            byte[] body = (status == 200 ? "{\"access_token\":\"" + credential(issuedTenant, issuedLifetime) + "\",\"token_type\":\"Bearer\",\"expires_in\":" + issuedLifetime + "}"
                     : "{\"error\":\"invalid_grant\",\"error_description\":\"no\"}").getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status, status == 204 ? -1 : body.length);
             if (status != 204) {
@@ -75,7 +78,7 @@ class ToolGateClientTest {
         control.start();
         Path token = Files.writeString(temp.resolve("service-token"), "service-jwt\n");
         var signer = new SessionAssertionSigner((RSAPrivateCrtKey) keys.getPrivate(), "olo-1", "https://olo.example/backend",
-                "toolgate-token-exchange", Duration.ofMinutes(1), json);
+                "toolgate-token-exchange", Duration.ofSeconds(15), json);
         client = new ToolGateClient(URI.create("http://127.0.0.1:" + control.getAddress().getPort() + "/"), token, signer,
                 HttpClient.newHttpClient(), Duration.ofSeconds(5), json, Clock.fixed(NOW, ZoneOffset.UTC));
     }
@@ -87,9 +90,9 @@ class ToolGateClientTest {
 
     @Test
     void exchangeSendsASignedAssertionWithTheServiceToken() throws Exception {
-        ToolGateClient.Credential credential = client.exchange("user-42");
-        assertEquals("credential", credential.accessToken());
-        assertEquals(120, credential.expiresInSeconds());
+        ToolGateClient.Credential credential = client.exchange("t1", "user-42", NOW.plusSeconds(300));
+        assertEquals(credential("t1", 15), credential.accessToken());
+        assertEquals(15, credential.expiresInSeconds());
         assertTrue(!credential.toString().contains("credential["), "toString never prints the token");
 
         Map<String, String> call = calls.get(0);
@@ -115,13 +118,14 @@ class ToolGateClientTest {
         assertEquals("toolgate-token-exchange", claims.get("aud").asText());
         assertEquals("user-42", claims.get("sub").asText());
         assertEquals(NOW.getEpochSecond(), claims.get("iat").asLong());
-        assertEquals(NOW.getEpochSecond() + 60, claims.get("exp").asLong());
+        assertEquals("t1", claims.get("tid").asText());
+        assertEquals(NOW.getEpochSecond() + 15, claims.get("exp").asLong());
     }
 
     @Test
     void refusalsCarryToolGatesErrorCode() {
         exchangeStatus = 400;
-        var refused = assertThrows(ToolGateClient.ToolGateException.class, () -> client.exchange("user-42"));
+        var refused = assertThrows(ToolGateClient.ToolGateException.class, () -> client.exchange("t1", "user-42", NOW.plusSeconds(300)));
         assertEquals(400, refused.status());
         assertEquals("invalid_grant", refused.error());
     }
@@ -131,7 +135,7 @@ class ToolGateClientTest {
         var local = new InMemoryIdentityStore();
         var store = new RevocationPropagatingIdentityStore(local, client);
         String user = store.userIdFor("https://idp.example", "alice");
-        store.session("https://idp.example", "sid-1", user);
+        store.session("https://idp.example", "sid-1", user, NOW.plusSeconds(300));
 
         store.revokeSession("https://idp.example", "sid-1");
         store.revokeAllSessions(user);
@@ -152,9 +156,42 @@ class ToolGateClientTest {
         var local = new InMemoryIdentityStore();
         var store = new RevocationPropagatingIdentityStore(local, client);
         String user = store.userIdFor("https://idp.example", "alice");
-        store.session("https://idp.example", "sid-1", user);
+        store.session("https://idp.example", "sid-1", user, NOW.plusSeconds(300));
         store.revokeSession("https://idp.example", "sid-1");
         assertTrue(local.findSession("https://idp.example", "sid-1").orElseThrow().revoked());
+        assertTrue(local.pendingRevocations().containsKey(user));
+    }
+
+    @Test
+    void foreignTenantAndExcessiveCredentialLifetimesFailClosed() {
+        issuedTenant = "t2";
+        assertThrows(ToolGateClient.ToolGateException.class, () -> client.exchange("t1", "user-42", NOW.plusSeconds(300)));
+        issuedTenant = "t1";
+        issuedLifetime = 60;
+        assertThrows(ToolGateClient.ToolGateException.class, () -> client.exchange("t1", "user-42", NOW.plusSeconds(300)));
+        issuedLifetime = 15;
+        assertThrows(ToolGateClient.ToolGateException.class, () -> client.exchange("t1", "user-42", NOW.plusSeconds(5)));
+    }
+
+    @Test
+    void failedRevocationsSurviveWorkerRestartAndRetryWithoutAcknowledgingNewerEvents() {
+        var local = new InMemoryIdentityStore();
+        var store = new RevocationPropagatingIdentityStore(local, client);
+        revokeStatus = 503;
+        store.revokeAllSessions("user-42");
+        assertTrue(local.pendingRevocations().containsKey("user-42"));
+        String old = local.pendingRevocations().get("user-42");
+        local.enqueueRevocation("user-42", "newer-event");
+        local.acknowledgeRevocation("user-42", old);
+        assertEquals("newer-event", local.pendingRevocations().get("user-42"));
+        revokeStatus = 204;
+        new RevocationPropagatingIdentityStore(local, client).retryPendingRevocations();
+        assertTrue(local.pendingRevocations().isEmpty());
+    }
+
+    private static String credential(String tenant, long lifetime) {
+        String claims = "{\"tid\":\"" + tenant + "\",\"exp\":" + (NOW.getEpochSecond() + lifetime) + "}";
+        return "header." + Base64.getUrlEncoder().withoutPadding().encodeToString(claims.getBytes(StandardCharsets.UTF_8)) + ".signature";
     }
 
     private static String decode(String part) {
