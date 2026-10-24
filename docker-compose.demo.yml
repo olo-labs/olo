@@ -69,6 +69,8 @@ services:
       OLO_SECURITY_JWK_SET_URI: ${OLO_SECURITY_JWK_SET_URI:-}
       OLO_CALLBACK_KEY_ID: ${OLO_CALLBACK_KEY_ID:?set OLO_CALLBACK_KEY_ID}
       OLO_CALLBACK_KEY: ${OLO_CALLBACK_KEY:?set OLO_CALLBACK_KEY}
+      # Temporal payload protection (M5.2) is off for this local stack only; production mounts a key ring.
+      OLO_PAYLOAD_PROTECTION: ${OLO_PAYLOAD_PROTECTION:-disabled-for-development}
     depends_on:
       redis:
         condition: service_healthy
