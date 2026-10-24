@@ -19,7 +19,7 @@ import java.time.Duration;
  * @param assertionAudience   {@code aud} of session assertions; ToolGate pins it
  * @param keyId               {@code kid} of the assertion key; ToolGate pins it
  * @param privateKeyPath      PKCS#8 PEM RSA key used only for session assertions
- * @param assertionLifetime   assertion lifetime; at most five minutes, default one minute
+ * @param assertionLifetime   assertion lifetime; at most fifteen seconds to bound authority after failed revocation
  * @param requestTimeout      timeout for each ToolGate call
  */
 @ConfigurationProperties(prefix = "olo.toolgate.credentials")
@@ -29,7 +29,7 @@ public record ToolGateCredentialProperties(Boolean enabled, URI controlUrl, Path
 
     public ToolGateCredentialProperties {
         enabled = enabled != null && enabled;
-        assertionLifetime = assertionLifetime == null ? Duration.ofMinutes(1) : assertionLifetime;
+        assertionLifetime = assertionLifetime == null ? Duration.ofSeconds(15) : assertionLifetime;
         requestTimeout = requestTimeout == null ? Duration.ofSeconds(5) : requestTimeout;
     }
 
@@ -44,8 +44,8 @@ public record ToolGateCredentialProperties(Boolean enabled, URI controlUrl, Path
             throw new IllegalStateException("olo.toolgate.credentials needs an https control-url, service-token-path, "
                     + "private-key-path, assertion-issuer, assertion-audience and key-id");
         }
-        if (assertionLifetime.isNegative() || assertionLifetime.isZero() || assertionLifetime.compareTo(Duration.ofMinutes(5)) > 0) {
-            throw new IllegalStateException("olo.toolgate.credentials.assertion-lifetime must be at most 5 minutes");
+        if (assertionLifetime.isNegative() || assertionLifetime.isZero() || assertionLifetime.compareTo(Duration.ofSeconds(15)) > 0) {
+            throw new IllegalStateException("olo.toolgate.credentials.assertion-lifetime must be at most 15 seconds");
         }
     }
 

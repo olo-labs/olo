@@ -43,6 +43,9 @@ public final class SessionAssertionSigner {
         this.issuer = issuer;
         this.audience = audience;
         this.lifetime = lifetime;
+        if (lifetime.isNegative() || lifetime.isZero() || lifetime.compareTo(Duration.ofSeconds(15)) > 0) {
+            throw new IllegalArgumentException("assertion lifetime must be 1-15 seconds");
+        }
         this.json = json;
     }
 
@@ -57,13 +60,16 @@ public final class SessionAssertionSigner {
         return (RSAPrivateCrtKey) KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
     }
 
-    public String sign(String userId, Instant now) {
+    public String sign(String tenantId, String userId, Instant now, Instant authenticatedUntil) {
         Map<String, Object> claims = new LinkedHashMap<>();
         claims.put("iss", issuer);
         claims.put("aud", audience);
         claims.put("sub", userId);
+        claims.put("tid", tenantId);
         claims.put("iat", now.getEpochSecond());
-        claims.put("exp", now.plus(lifetime).getEpochSecond());
+        Instant expiry = now.plus(lifetime).isBefore(authenticatedUntil) ? now.plus(lifetime) : authenticatedUntil;
+        if (expiry.getEpochSecond() <= now.getEpochSecond()) throw new IllegalArgumentException("session has expired");
+        claims.put("exp", expiry.getEpochSecond());
         try {
             String input = header + "." + encode(json.writeValueAsString(claims));
             Signature signature = Signature.getInstance("SHA256withRSA");

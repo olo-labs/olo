@@ -27,6 +27,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -72,7 +74,7 @@ class ToolGateCredentialSecurityTest {
     private String user(String subject, String sid, String tenant) {
         String userId = identityStore.userIdFor(TestTokens.ISSUER, subject);
         identityStore.addMembership(userId, tenant);
-        identityStore.session(TestTokens.ISSUER, sid, userId);
+        identityStore.session(TestTokens.ISSUER, sid, userId, Instant.now().plusSeconds(300));
         return userId;
     }
 
@@ -94,13 +96,13 @@ class ToolGateCredentialSecurityTest {
     @Test
     void signedWorkerGetsACredentialForALiveSessionOfAMember() throws Exception {
         String userId = user("alice", "sid-a", "t1");
-        when(toolGate.exchange(userId)).thenReturn(new ToolGateClient.Credential("tg-credential", 120));
+        when(toolGate.exchange(eq("t1"), eq(userId), any())).thenReturn(new ToolGateClient.Credential("tg-credential", 15));
         mvc.perform(signed(ref("t1", userId, "sid-a", 1)))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store"))
                 .andExpect(jsonPath("$.accessToken").value("tg-credential"))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.expiresIn").value(120));
+                .andExpect(jsonPath("$.expiresIn").value(15));
     }
 
     @Test
@@ -111,7 +113,7 @@ class ToolGateCredentialSecurityTest {
         mvc.perform(post(PATH).contentType(MediaType.APPLICATION_JSON).content(body)
                         .header("Authorization", "Bearer " + TestTokens.token("bob", "sid-b")))
                 .andExpect(status().isUnauthorized());
-        verify(toolGate, never()).exchange(anyString());
+        verify(toolGate, never()).exchange(anyString(), anyString(), any());
     }
 
     @Test
@@ -130,14 +132,34 @@ class ToolGateCredentialSecurityTest {
         verify(toolGate).revoke(dave);
         mvc.perform(signed(ref("t1", dave, "sid-d", 2))).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("session_ended"));
-        verify(toolGate, never()).exchange(anyString());
+        verify(toolGate, never()).exchange(anyString(), anyString(), any());
     }
 
     @Test
     void toolGateRefusalOfADisabledUserIsForbidden() throws Exception {
         String userId = user("erin", "sid-e", "t1");
-        when(toolGate.exchange(userId)).thenThrow(new ToolGateClient.ToolGateException(403, "forbidden", "no"));
+        when(toolGate.exchange(eq("t1"), eq(userId), any())).thenThrow(new ToolGateClient.ToolGateException(403, "forbidden", "no"));
         mvc.perform(signed(ref("t1", userId, "sid-e", 1))).andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("user_not_enabled"));
+    }
+
+    @Test
+    void anExpiredSessionCannotRenewFromItsBindingReference() throws Exception {
+        String user = identityStore.userIdFor(TestTokens.ISSUER, "expired");
+        identityStore.addMembership(user, "t1");
+        identityStore.session(TestTokens.ISSUER, "expired-sid", user, Instant.now().minusSeconds(1));
+        mvc.perform(signed(ref("t1", user, "expired-sid", 1))).andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("session_ended"));
+        verify(toolGate, never()).exchange(eq("t1"), eq(user), any());
+    }
+
+    @Test
+    void pendingRevocationsBlockNewCredentialsUntilAuthorityIsSynchronized() throws Exception {
+        String user = user("pending", "pending-sid", "t1");
+        identityStore.enqueueRevocation(user, "rev-1");
+        mvc.perform(signed(ref("t1", user, "pending-sid", 1))).andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.error").value("revocation_pending"));
+        verify(toolGate, never()).exchange(eq("t1"), eq(user), any());
+        identityStore.acknowledgeRevocation(user, "rev-1");
     }
 }

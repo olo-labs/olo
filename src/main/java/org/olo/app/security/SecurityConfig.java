@@ -51,6 +51,7 @@ import java.util.Map;
  */
 @Configuration
 @EnableWebSecurity
+@org.springframework.scheduling.annotation.EnableScheduling
 @EnableConfigurationProperties({OloSecurityProperties.class, WorkerCallbackProperties.class})
 public class SecurityConfig {
 
@@ -109,6 +110,7 @@ public class SecurityConfig {
                     auth.requestMatchers(WorkerCallbackAuthenticationFilter.CALLBACK)
                             .hasAuthority(WorkerCallbackAuthenticationFilter.ROLE_WORKER);
                     auth.requestMatchers("/api/admin/**").hasAuthority(OloAuthenticationToken.ROLE_ADMIN);
+                    auth.requestMatchers("/api/codec/**").hasAuthority(OloAuthenticationToken.ROLE_ADMIN);
                     auth.anyRequest().authenticated();
                 })
                 .oauth2ResourceServer(oauth -> oauth
