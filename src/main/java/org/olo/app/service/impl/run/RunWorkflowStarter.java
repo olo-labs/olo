@@ -45,7 +45,7 @@ public class RunWorkflowStarter {
 
     public void startWorkflow(String runId, WorkflowInput workflowInput, String taskQueueFromFrontend) {
         log.info("Starting workflow runId={} callbackBaseUrl={}", runId, callbackBaseUrl);
-        log.info("Workflow input payload (JSON): {}", workflowInput != null ? workflowInput.toJson() : "null");
+        // Never the input itself: it holds the user's message and, for RAG, retrieved content (M5.2).
 
         try {
             workflowRunner.startChatRun(runId, workflowInput, taskQueueFromFrontend, new WorkflowRunCompletion() {

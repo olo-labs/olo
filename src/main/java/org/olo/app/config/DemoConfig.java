@@ -86,11 +86,15 @@ public class DemoConfig {
     }
 
     @Bean
-    public TemporalClient temporalClient(ResolvedOloRuntimeSettings runtimeSettings) {
+    public TemporalClient temporalClient(ResolvedOloRuntimeSettings runtimeSettings,
+                                         @Value("${olo.temporal.payload-keys-file:}") String payloadKeysFile,
+                                         @Value("${olo.temporal.payload-protection:}") String payloadProtection) {
         return TemporalClient.newBuilder()
                 .target(temporalTarget)
                 .namespace(runtimeSettings.temporalNamespace())
                 .workflowType(runtimeSettings.workflowType())
+                // M5.2: the same payload codec as the workers, so started inputs and results never sit in cleartext.
+                .dataConverter(org.olo.input.codec.PayloadProtection.dataConverter(payloadKeysFile, payloadProtection))
                 .build();
     }
 

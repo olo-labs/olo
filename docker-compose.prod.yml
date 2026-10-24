@@ -27,6 +27,10 @@ services:
       OLO_CALLBACK_KEY_ID: ${OLO_CALLBACK_KEY_ID:?set OLO_CALLBACK_KEY_ID}
       OLO_CALLBACK_KEY: ${OLO_CALLBACK_KEY:?set OLO_CALLBACK_KEY}
       OLO_SWAGGER_UI_ENABLED: ${OLO_SWAGGER_UI_ENABLED:-false}
+      # Temporal payload key ring (M5.2), the same file the workers mount.
+      OLO_PAYLOAD_KEYS_FILE: /run/secrets/olo-payload-keys.json
+    volumes:
+      - ${OLO_PAYLOAD_KEYS_HOST_FILE:?set OLO_PAYLOAD_KEYS_HOST_FILE to the payload key ring}:/run/secrets/olo-payload-keys.json:ro
     restart: unless-stopped
     # Optional: add a healthcheck if your image has wget/curl (e.g. custom Dockerfile)
     # healthcheck:

@@ -22,7 +22,7 @@ repositories {
 }
 
 dependencies {
-    api 'io.temporal:temporal-sdk:1.26.0'
+    api 'io.temporal:temporal-sdk:1.30.1'
 }
 
 publishing {

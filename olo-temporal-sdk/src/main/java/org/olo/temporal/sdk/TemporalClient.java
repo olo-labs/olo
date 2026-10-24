@@ -18,7 +18,6 @@ import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 public final class TemporalClient {
 
     static final String HUMAN_INPUT_SIGNAL = "humanInput";
-    static final String RUN_WORKFLOW_ID_PREFIX = "run-";
 
     private final String workflowType;
     private final WorkflowServiceStubs serviceStubs;
@@ -35,11 +34,13 @@ public final class TemporalClient {
 
         this.serviceStubs = WorkflowServiceStubs.newServiceStubs(stubsOptions);
 
-        WorkflowClientOptions clientOptions = WorkflowClientOptions.newBuilder()
-                .setNamespace(builder.namespace)
-                .build();
+        WorkflowClientOptions.Builder clientOptions = WorkflowClientOptions.newBuilder()
+                .setNamespace(builder.namespace);
+        if (builder.dataConverter != null) {
+            clientOptions.setDataConverter(builder.dataConverter);
+        }
 
-        this.workflowClient = WorkflowClient.newInstance(serviceStubs, clientOptions);
+        this.workflowClient = WorkflowClient.newInstance(serviceStubs, clientOptions.build());
     }
 
     public static Builder newBuilder() {
@@ -47,17 +48,18 @@ public final class TemporalClient {
     }
 
     /**
-     * Starts the configured chat workflow type on {@code taskQueue} with workflow id {@code run-{runId}}.
+     * Starts the configured chat workflow type on {@code taskQueue} as {@code workflowId}. The caller names the workflow so
+     * the id can carry the run's tenant, which the payload codec seals with (OLO M5.2).
      */
-    public ChatWorkflowHandle startChatWorkflow(String runId, String taskQueue, Object workflowInput) {
-        if (runId == null || runId.isBlank()) {
-            throw new IllegalArgumentException("runId is required");
+    public ChatWorkflowHandle startChatWorkflow(String workflowId, String taskQueue, Object workflowInput) {
+        if (workflowId == null || workflowId.isBlank()) {
+            throw new IllegalArgumentException("workflowId is required");
         }
         if (taskQueue == null || taskQueue.isBlank()) {
             throw new IllegalArgumentException("taskQueue is required");
         }
         WorkflowOptions options = WorkflowOptions.newBuilder()
-                .setWorkflowId(runWorkflowId(runId))
+                .setWorkflowId(workflowId)
                 .setTaskQueue(taskQueue.trim())
                 .build();
         WorkflowStub stub = workflowClient.newUntypedWorkflowStub(workflowType, options);
@@ -66,29 +68,25 @@ public final class TemporalClient {
     }
 
     /**
-     * Signals human input on the chat workflow for {@code runId}.
+     * Signals human input on the chat workflow {@code workflowId}.
      */
-    public void signalHumanInput(String runId, boolean approved, String message) {
-        if (runId == null || runId.isBlank()) {
-            throw new IllegalArgumentException("runId is required");
+    public void signalHumanInput(String workflowId, boolean approved, String message) {
+        if (workflowId == null || workflowId.isBlank()) {
+            throw new IllegalArgumentException("workflowId is required");
         }
-        WorkflowStub stub = workflowClient.newUntypedWorkflowStub(runWorkflowId(runId));
+        WorkflowStub stub = workflowClient.newUntypedWorkflowStub(workflowId);
         stub.signal(HUMAN_INPUT_SIGNAL, approved, message != null ? message : "");
     }
 
     /**
-     * Requests cancellation of the chat workflow for {@code runId}.
+     * Requests cancellation of the chat workflow {@code workflowId}.
      */
-    public void cancelChatWorkflow(String runId) {
-        if (runId == null || runId.isBlank()) {
-            throw new IllegalArgumentException("runId is required");
+    public void cancelChatWorkflow(String workflowId) {
+        if (workflowId == null || workflowId.isBlank()) {
+            throw new IllegalArgumentException("workflowId is required");
         }
-        WorkflowStub stub = workflowClient.newUntypedWorkflowStub(runWorkflowId(runId));
+        WorkflowStub stub = workflowClient.newUntypedWorkflowStub(workflowId);
         stub.cancel();
-    }
-
-    public static String runWorkflowId(String runId) {
-        return RUN_WORKFLOW_ID_PREFIX + runId.trim();
     }
 
     public void close() {
@@ -99,6 +97,7 @@ public final class TemporalClient {
         private String target = "localhost:7233";
         private String namespace = "default";
         private String workflowType;
+        private io.temporal.common.converter.DataConverter dataConverter;
 
         public Builder target(String target) {
             this.target = target;
@@ -113,6 +112,12 @@ public final class TemporalClient {
         /** Workflow type name (e.g. olo). Set from workflow.json in the backend. */
         public Builder workflowType(String workflowType) {
             this.workflowType = workflowType;
+            return this;
+        }
+
+        /** Converter for every payload this client writes and reads; OLO uses its payload codec (M5.2). */
+        public Builder dataConverter(io.temporal.common.converter.DataConverter dataConverter) {
+            this.dataConverter = dataConverter;
             return this;
         }
 

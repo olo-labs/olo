@@ -8,6 +8,7 @@ package org.olo.app.workflow.impl;
 import org.olo.app.workflow.WorkflowRunCompletion;
 import org.olo.app.workflow.WorkflowRunner;
 import org.olo.input.model.WorkflowInput;
+import org.olo.input.codec.TenantWorkflowIds;
 import org.olo.temporal.sdk.ChatWorkflowHandle;
 import org.olo.temporal.sdk.TemporalClient;
 import org.slf4j.Logger;
@@ -28,12 +29,15 @@ public class SdkWorkflowRunner implements WorkflowRunner {
     private final TemporalClient temporalClient;
     private final String defaultTaskQueue;
     private final Executor workflowCompletionExecutor;
+    private final org.olo.app.store.ChatRunStore runStore;
 
     public SdkWorkflowRunner(
             TemporalClient temporalClient,
             @Qualifier("oloTaskQueue") String defaultTaskQueue,
-            @Qualifier("workflowCompletionExecutor") Executor workflowCompletionExecutor) {
+            @Qualifier("workflowCompletionExecutor") Executor workflowCompletionExecutor,
+            org.olo.app.store.ChatRunStore runStore) {
         this.temporalClient = temporalClient;
+        this.runStore = runStore;
         this.defaultTaskQueue = defaultTaskQueue;
         this.workflowCompletionExecutor = workflowCompletionExecutor;
     }
@@ -48,7 +52,9 @@ public class SdkWorkflowRunner implements WorkflowRunner {
                 ? taskQueue.trim()
                 : defaultTaskQueue;
         log.info("Starting chat workflow runId={} taskQueue={}", runId, effectiveTaskQueue);
-        ChatWorkflowHandle handle = temporalClient.startChatWorkflow(runId, effectiveTaskQueue, workflowInput);
+        String tenantId = workflowInput.getContext() != null ? workflowInput.getContext().getTenantId() : null;
+        ChatWorkflowHandle handle = temporalClient.startChatWorkflow(
+                TenantWorkflowIds.run(tenantId, runId), effectiveTaskQueue, workflowInput);
         handle.awaitResultAsync(
                 workflowCompletionExecutor,
                 result -> {
@@ -64,11 +70,20 @@ public class SdkWorkflowRunner implements WorkflowRunner {
 
     @Override
     public void signalHumanInput(String runId, boolean approved, String message) {
-        temporalClient.signalHumanInput(runId, approved, message);
+        temporalClient.signalHumanInput(workflowId(runId), approved, message);
     }
 
     @Override
     public void cancelChatRun(String runId) {
-        temporalClient.cancelChatWorkflow(runId);
+        temporalClient.cancelChatWorkflow(workflowId(runId));
+    }
+
+    /** The run's workflow id carries its tenant, which the payload codec seals with (M5.2). */
+    private String workflowId(String runId) {
+        org.olo.app.store.ChatRunStore.RunRecord run = runStore.get(runId);
+        if (run == null || run.tenantId == null) {
+            throw new IllegalArgumentException("unknown run " + runId);
+        }
+        return TenantWorkflowIds.run(run.tenantId, runId);
     }
 }
