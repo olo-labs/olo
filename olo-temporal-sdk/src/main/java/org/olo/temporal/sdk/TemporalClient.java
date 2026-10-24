@@ -61,6 +61,7 @@ public final class TemporalClient {
         WorkflowOptions options = WorkflowOptions.newBuilder()
                 .setWorkflowId(workflowId)
                 .setTaskQueue(taskQueue.trim())
+                .setWorkflowExecutionTimeout(java.time.Duration.ofDays(30))
                 .build();
         WorkflowStub stub = workflowClient.newUntypedWorkflowStub(workflowType, options);
         stub.start(workflowInput);
