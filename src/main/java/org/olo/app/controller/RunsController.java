@@ -26,7 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.Map;
 
-@RestController
+// Fresh-install contract: this legacy controller is deliberately not registered. Removed in M9.
 @RequestMapping("/api/runs")
 @Tag(name = "Runs", description = "Chat runs, execution events (SSE), and human approval")
 public class RunsController {

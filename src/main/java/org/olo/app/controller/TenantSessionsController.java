@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * List and delete chat sessions for a tenant. Used by the Conversation UI to show all sessions,
  * default to the latest, and "Delete all" for that pipeline/tenant.
  */
-@RestController
+// Fresh-install contract: this legacy controller is deliberately not registered. Removed in M9.
 @RequestMapping("/api/tenants")
 @Tag(name = "Tenant sessions", description = "List and delete chat sessions per tenant for Conversation")
 public class TenantSessionsController {

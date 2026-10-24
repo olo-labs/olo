@@ -39,7 +39,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** M3.3: a chat run carries the verified user it acts for as a non-secret binding reference. */
-@WebMvcTest(controllers = SessionsController.class)
+@WebMvcTest(controllers = org.olo.app.knowledge.KnowledgeController.class)
 @Import({SecurityConfig.class, RunIdentityBindingTest.TestBeans.class, ChatSessionStore.class, ChatMessageStore.class,
         ChatRunStore.class})
 @TestPropertySource(properties = {
@@ -82,6 +82,9 @@ class RunIdentityBindingTest {
     private RunService runService;
 
     @MockBean
+    private org.olo.app.knowledge.PlatformKnowledge knowledge;
+
+    @MockBean
     private ExecutionEventStore eventStore;
 
     private final ObjectMapper json = new ObjectMapper();
@@ -89,16 +92,12 @@ class RunIdentityBindingTest {
     @Test
     void chatRunCarriesTheVerifiedUserFromTheToken() throws Exception {
         String bearer = "Bearer " + TestTokens.token("alice", "sid-alice");
-        String created = mvc.perform(post("/api/sessions").header("Authorization", bearer)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"tenantId\":\"t1\"}"))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
-        String sessionId = json.readTree(created).get("sessionId").asText();
-
-        // Identity fields in the request body are ignored: only the verified principal counts.
-        mvc.perform(post("/api/sessions/" + sessionId + "/messages").header("Authorization", bearer)
+        String sessionId = java.util.UUID.randomUUID().toString();
+        mvc.perform(post("/api/v1/conversations/" + sessionId + "/turns").header("Authorization", bearer)
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"hello\",\"identity\":{\"userId\":\"someone-else\"}}"))
-                .andExpect(status().isOk());
+                        .content("{\"message\":\"hello\",\"identity\":{\"userId\":\"someone-else\"}}"))
+                .andExpect(status().isAccepted());
 
         ArgumentCaptor<WorkflowInput> input = ArgumentCaptor.forClass(WorkflowInput.class);
         verify(runService).startWorkflow(anyString(), input.capture(), eq("olo-chat"));
@@ -111,4 +110,29 @@ class RunIdentityBindingTest {
         assertThat(serialized.path("sessionEpoch").asLong()).isEqualTo(1);
         assertThat(serialized.has("accessToken")).isFalse();
     }
+    @Test
+    void cancellationRebuildsItsRunBindingFromGovernedHistoryAfterRestart() throws Exception {
+        String conversation=java.util.UUID.randomUUID().toString(), turn=java.util.UUID.randomUUID().toString();
+        org.mockito.Mockito.when(knowledge.read(eq(conversation),org.mockito.ArgumentMatchers.anyMap()))
+                .thenReturn(json.readTree("{\"messages\":[{\"role\":\"user\",\"message_id\":\"accepted-message\"}]}"));
+        mvc.perform(post("/api/v1/conversations/"+conversation+"/turns/"+turn+"/cancel")
+                .header("Authorization","Bearer "+TestTokens.token("alice","sid-alice"))
+                .header("Idempotency-Key",java.util.UUID.randomUUID().toString()))
+                .andExpect(status().isOk());
+        verify(knowledge).call(anyString(),eq("memory.append"),eq(conversation),eq(java.util.Map.of("type","check")));
+        verify(runService).cancelRun(turn);
+    }
+
+    @Test
+    void deniedAcceptedMessageNeverStartsAWorkflow() throws Exception {
+        org.mockito.Mockito.when(knowledge.call(anyString(),eq("memory.append"),anyString(),org.mockito.ArgumentMatchers.anyMap()))
+                .thenThrow(new SecurityException("Denied"));
+        mvc.perform(post("/api/v1/conversations/"+java.util.UUID.randomUUID()+"/turns")
+                .header("Authorization","Bearer "+TestTokens.token("alice","sid-alice"))
+                .header("Idempotency-Key",java.util.UUID.randomUUID().toString())
+                .contentType(MediaType.APPLICATION_JSON).content("{\"message\":\"hello\"}"))
+                .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(runService);
+    }
+
 }

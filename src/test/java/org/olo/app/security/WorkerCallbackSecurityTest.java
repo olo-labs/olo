@@ -39,7 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * M3.11: the worker run-event callback is accepted only with a valid HMAC signature, and runs stay tenant-scoped for users.
  */
-@WebMvcTest(controllers = RunsController.class)
+@WebMvcTest(controllers = org.olo.app.knowledge.WorkerEventsController.class)
 @Import({SecurityConfig.class, WorkerCallbackSecurityTest.TestKeys.class, ChatRunStore.class})
 @TestPropertySource(properties = {
         "olo.security.issuer=" + TestTokens.ISSUER,
@@ -145,8 +145,8 @@ class WorkerCallbackSecurityTest {
     }
 
     @Test
-    void signedCallbackForAnUnknownRunIsNotFound() throws Exception {
-        mvc.perform(signed("/api/runs/run-x/events", "k1", SECRET, now(), BODY)).andExpect(status().isNotFound());
+    void signedCallbackAfterBackendRestartIsAcknowledgedWithoutStoringContent() throws Exception {
+        mvc.perform(signed("/api/runs/run-x/events", "k1", SECRET, now(), BODY)).andExpect(status().isNoContent());
     }
 
     @Test
@@ -157,9 +157,9 @@ class WorkerCallbackSecurityTest {
     }
 
     @Test
-    void usersSeeOnlyTheirTenantsRuns() throws Exception {
+    void legacyRunReadPathsAreClosed() throws Exception {
         String alice = "Bearer " + TestTokens.token("alice", "a2");
-        mvc.perform(get("/api/runs/run-1").header("Authorization", alice)).andExpect(status().isOk());
-        mvc.perform(get("/api/runs/run-2").header("Authorization", alice)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/runs/run-1").header("Authorization", alice)).andExpect(status().isGone());
+        mvc.perform(get("/api/runs/run-2").header("Authorization", alice)).andExpect(status().isGone());
     }
 }

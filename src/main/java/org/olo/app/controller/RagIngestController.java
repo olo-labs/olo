@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-@RestController
+// Fresh-install contract: this legacy controller is deliberately not registered. Removed in M9.
 @RequestMapping("/api")
 @Tag(name = "RAG ingest", description = "Create RAG indexing runs and list knowledge sources")
 public class RagIngestController {

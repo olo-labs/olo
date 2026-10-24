@@ -53,6 +53,13 @@ public class RunEventHandler {
                             String nodeType, String status,
                             Map<String, Object> input, Map<String, Object> output, Map<String, Object> metadata,
                             Long sequenceNumber, Integer eventVersion, EventType eventType, String correlationId) {
+        // Conversation content lives only in the governed memory service. Diagnostics retain status, never prompts/results.
+        input = null;
+        if(output!=null && "WORKFLOW_RESULT".equals(output.get("status"))) output=Map.of("status","WORKFLOW_RESULT","memoryRecorded",true);
+        else if(output!=null && "temporal".equals(output.get("source"))) output=Map.of("source","temporal");
+        else if(output!=null && output.containsKey("cancelled")) output=Map.of("cancelled",output.get("cancelled"));
+        else output=Map.of();
+        metadata=metadata!=null && metadata.containsKey("phase")?Map.of("phase",metadata.get("phase")):Map.of();
         OloExecutionEvent event = buildEvent(runId, nodeId, parentNodeId, nodeType, status,
                 input, output, metadata, sequenceNumber, eventVersion, eventType, correlationId);
 
@@ -65,9 +72,7 @@ public class RunEventHandler {
         runStore.setStatus(runId, derivedStatus);
         knowledgeSourceStore.updateFromEvent(runId, event, derivedStatus);
 
-        humanStepPersistence.handleHumanStepEvent(runId, event);
-        // Persist assistant response BEFORE broadcast so client refetch sees it when event arrives.
-        assistantPersistence.maybePersistAssistantResponse(runId, event);
+        // The root governed lifecycle is the sole history writer.
 
         broadcaster.broadcast(runId, event);
     }

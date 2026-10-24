@@ -16,8 +16,7 @@ import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
 /**
  * WebSocket endpoint at /ws. Client sends Authorization: Bearer JWT; backend validates and stores tenantId in session.
  */
-@Configuration
-@EnableWebSocket
+// Legacy event streaming is not registered in the fresh governed API.
 public class WebSocketConfig implements WebSocketConfigurer {
 
     private final RunEventWebSocketHandler runEventWebSocketHandler;
