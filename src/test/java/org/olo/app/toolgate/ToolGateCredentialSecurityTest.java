@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -156,6 +157,11 @@ class ToolGateCredentialSecurityTest {
     @Test
     void pendingRevocationsBlockNewCredentialsUntilAuthorityIsSynchronized() throws Exception {
         String user = user("pending", "pending-sid", "t1");
+        // Keep authority synchronization unavailable even if the scheduled retry
+        // runs between enqueue and the request. A successful mock must not race
+        // this test's assertion by draining the outbox.
+        doThrow(new ToolGateClient.ToolGateException(503,"unavailable","fixture outage"))
+                .when(toolGate).revoke(user);
         identityStore.enqueueRevocation(user, "rev-1");
         mvc.perform(signed(ref("t1", user, "pending-sid", 1))).andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.error").value("revocation_pending"));
