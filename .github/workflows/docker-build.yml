@@ -34,10 +34,15 @@ jobs:
       - name: Checkout olo
         uses: actions/checkout@v4
 
+      - name: Resolve pinned shared-library revision
+        id: shared-libraries
+        run: echo "ref=$(git rev-parse HEAD:olo-mono)" >> "$GITHUB_OUTPUT"
+
       - name: Checkout olo-mono (shared libs for Docker build)
         uses: actions/checkout@v4
         with:
           repository: olo-labs/olo-mono
+          ref: ${{ steps.shared-libraries.outputs.ref }}
           path: olo-mono
           sparse-checkout: |
             gradle
@@ -45,6 +50,7 @@ jobs:
             olo-annotation
             olo-definition
             olo-workflow-input
+            olo-toolgate-client
           sparse-checkout-cone-mode: true
 
       - name: Resolve library version
