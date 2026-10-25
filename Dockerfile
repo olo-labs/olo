@@ -28,9 +28,7 @@ RUN cd olo-mono/olo-spi \
     && gradle -I /tmp/olo-mono-ci.init.gradle -PoloPublishBuildDir=../build/publish-work/olo-workflow-input publishMavenPublicationToOloMonoRepository -x test --no-daemon \
     && test -f ../build/repo/org/olo/olo-workflow-input/0.1.0-SNAPSHOT/maven-metadata.xml \
     && cd /workspace \
-    && sed -i 's/\r$//' gradlew \
-    && chmod +x gradlew \
-    && ./gradlew -I /tmp/olo-mono-ci.init.gradle bootJar -x test --no-daemon
+    && gradle -I /tmp/olo-mono-ci.init.gradle bootJar -x test --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
