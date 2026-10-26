@@ -8,6 +8,7 @@ COPY olo-mono/olo-spi olo-mono/olo-spi
 COPY olo-mono/olo-annotation olo-mono/olo-annotation
 COPY olo-mono/olo-definition olo-mono/olo-definition
 COPY olo-mono/olo-workflow-input olo-mono/olo-workflow-input
+COPY olo-mono/olo-toolgate-client olo-mono/olo-toolgate-client
 COPY olo-temporal-sdk olo-temporal-sdk
 COPY gradle gradle
 COPY gradlew gradlew.bat settings.gradle build.gradle gradle.properties ./
@@ -27,8 +28,7 @@ RUN cd olo-mono/olo-spi \
     && gradle -I /tmp/olo-mono-ci.init.gradle -PoloPublishBuildDir=../build/publish-work/olo-workflow-input publishMavenPublicationToOloMonoRepository -x test --no-daemon \
     && test -f ../build/repo/org/olo/olo-workflow-input/0.1.0-SNAPSHOT/maven-metadata.xml \
     && cd /workspace \
-    && chmod +x gradlew \
-    && ./gradlew -I /tmp/olo-mono-ci.init.gradle bootJar -x test --no-daemon
+    && gradle -I /tmp/olo-mono-ci.init.gradle bootJar -x test --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine

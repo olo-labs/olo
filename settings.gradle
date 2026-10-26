@@ -9,6 +9,11 @@ plugins {
 
 rootProject.name = 'olo-backend'
 include 'olo-temporal-sdk'
-includeBuild('../olo-mono/olo-toolgate-client')
+def toolGateClient = [file('olo-mono/olo-toolgate-client'), file('../olo-mono/olo-toolgate-client')]
+        .find { it.isDirectory() }
+if (toolGateClient == null) {
+    throw new GradleException('Missing olo-toolgate-client: initialize the pinned olo-mono submodule')
+}
+includeBuild(toolGateClient)
 
 // olo-definition and olo-workflow-input resolve from olo-mono/build/repo (publish-libs.bat).
